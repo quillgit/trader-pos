@@ -27,5 +27,26 @@ export const api = {
             throw new Error(`Fetch masters failed: ${response.statusText}`);
         }
         return response.json();
+    },
+
+    async pushSettings(settings: any) {
+         const baseUrl = getApiUrl();
+         if (!baseUrl) throw new Error('API URL not configured');
+ 
+         const payload = {
+             action: 'update',
+             type: 'settings',
+             payload: settings
+         };
+ 
+         const response = await fetch(`${baseUrl}?action=sync`, {
+             method: 'POST',
+             body: JSON.stringify(payload),
+         });
+ 
+         if (!response.ok) {
+             throw new Error(`Settings push failed: ${response.statusText}`);
+         }
+         return response.json();
     }
 };

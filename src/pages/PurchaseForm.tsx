@@ -3,8 +3,10 @@ import { stores } from '@/lib/storage';
 import { SyncEngine } from '@/services/sync';
 import type { Product, Partner, Transaction, TransactionItem, CashSession } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { Trash, Save } from 'lucide-react';
+import { Save, Plus, ShoppingCart, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 
 export default function PurchaseForm() {
     const navigate = useNavigate();
@@ -14,6 +16,7 @@ export default function PurchaseForm() {
 
     const [selectedSupplier, setSelectedSupplier] = useState('');
     const [cart, setCart] = useState<TransactionItem[]>([]);
+    const [paidAmount, setPaidAmount] = useState<number>(0);
     const [hasOpenSession, setHasOpenSession] = useState<boolean | null>(null);
 
     // Item entry state
@@ -22,6 +25,9 @@ export default function PurchaseForm() {
         quantity: 1,
         price: 0 // Will default to buying price
     });
+
+    const totalAmount = cart.reduce((sum, item) => sum + item.total, 0);
+    const changeAmount = paidAmount > totalAmount ? paidAmount - totalAmount : 0;
 
     useEffect(() => {
         const loadMasters = async () => {
@@ -37,9 +43,8 @@ export default function PurchaseForm() {
             const supplierList: Partner[] = [];
             for (const k of sKeys) {
                 const s = await stores.masters.partners.getItem<Partner>(k);
-                if (s && s.type === 'SUPPLIER') supplierList.push(s);
+                if (s && s.is_supplier == true) supplierList.push(s);
             }
-            setSuppliers(supplierList);
             setSuppliers(supplierList);
 
             // Check Session
@@ -84,22 +89,23 @@ export default function PurchaseForm() {
 
         // Reset item entry
         setCurrentItem({ productId: '', quantity: 1, price: 0 });
+        toast.success('Item added to cart');
     };
 
     const removeItem = (index: number) => {
         const newCart = [...cart];
         newCart.splice(index, 1);
         setCart(newCart);
+        toast.success('Item removed');
     };
 
     const handleSubmit = async () => {
         if (!selectedSupplier || cart.length === 0) {
-            alert('Select supplier and add items');
+            toast.error('Select supplier and add items');
             return;
         }
 
         const supplier = suppliers.find(s => s.id === selectedSupplier);
-        const totalAmount = cart.reduce((sum, item) => sum + item.total, 0);
 
         const trx: Transaction = {
             id: uuidv4(),
@@ -109,6 +115,8 @@ export default function PurchaseForm() {
             partner_name: supplier?.name,
             items: cart,
             total_amount: totalAmount,
+            paid_amount: paidAmount,
+            change_amount: changeAmount,
             sync_status: 'PENDING',
             created_by: 'OFFLINE_USER' // Should come from Auth context
         };
@@ -117,141 +125,197 @@ export default function PurchaseForm() {
         await stores.transactions.purchases.setItem(trx.id, trx);
         await SyncEngine.addToQueue('transaction', 'create', trx);
 
-        alert('Purchase saved offline!');
+        toast.success('Purchase saved successfully!');
         navigate('/purchases');
     };
 
     return (
-        <div className="space-y-6 max-w-2xl mx-auto py-6">
-            <h2 className="text-2xl font-bold">New Purchase</h2>
-
-            <h2 className="text-2xl font-bold">New Purchase</h2>
-
-            {hasOpenSession === false && (
-                <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md mb-4 flex justify-between items-center">
-                    <div>
-                        <strong>Session Closed:</strong> You must open a daily cash session before recording purchases.
-                    </div>
-                    <button onClick={() => navigate('/')} className="text-sm underline hover:text-red-900">
-                        Go to Dashboard
-                    </button>
-                </div>
-            )}
-
-            <div className={`bg-white p-4 rounded-md border shadow-sm space-y-4 ${hasOpenSession === false ? 'opacity-50 pointer-events-none' : ''}`}>
-                <div>
-                    <label className="block text-sm font-medium mb-1">Supplier</label>
-                    <select
-                        className="w-full border rounded p-2"
-                        value={selectedSupplier}
-                        onChange={(e) => setSelectedSupplier(e.target.value)}
-                    >
-                        <option value="">Select Supplier...</option>
-                        {suppliers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.sub_type})</option>)}
-                    </select>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium mb-1">Date</label>
-                    <input
-                        type="date"
-                        className="w-full border rounded p-2"
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)}
-                    />
-                </div>
-
-                <div className="border-t pt-4">
-                    <h3 className="font-medium mb-2">Add Items</h3>
-                    <div className="grid grid-cols-12 gap-2 items-end">
-                        <div className="col-span-12 md:col-span-5">
-                            <label className="text-xs">Product</label>
-                            <select
-                                className="w-full border rounded p-2"
-                                value={currentItem.productId}
-                                onChange={(e) => handleProductChange(e.target.value)}
-                            >
-                                <option value="">Select Product...</option>
-                                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                        </div>
-                        <div className="col-span-4 md:col-span-2">
-                            <label className="text-xs">Qty</label>
-                            <input
-                                type="number" className="w-full border rounded p-2"
-                                value={currentItem.quantity}
-                                onChange={e => setCurrentItem({ ...currentItem, quantity: Number(e.target.value) })}
-                            />
-                        </div>
-                        <div className="col-span-4 md:col-span-3">
-                            <label className="text-xs">Price</label>
-                            <input
-                                type="number" className="w-full border rounded p-2"
-                                value={currentItem.price}
-                                onChange={e => setCurrentItem({ ...currentItem, price: Number(e.target.value) })}
-                            />
-                        </div>
-                        <div className="col-span-4 md:col-span-2">
-                            <button
-                                type="button"
-                                onClick={addItem}
-                                disabled={!currentItem.productId}
-                                className="w-full bg-blue-100 text-blue-700 p-2 rounded hover:bg-blue-200"
-                            >
-                                Add
-                            </button>
-                        </div>
+        <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-gray-100">
+            {/* Left Panel: Product Selection & Inputs */}
+            <div className="flex-1 flex flex-col p-4 overflow-y-auto">
+                <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-2xl font-bold text-gray-800">New Purchase</h2>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="date"
+                            className="border rounded-lg px-3 py-2 bg-white shadow-sm"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                        />
                     </div>
                 </div>
 
-                {/* Cart Table */}
-                <div className="border rounded-md overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="p-2 text-left">Product</th>
-                                <th className="p-2 text-right">Qty</th>
-                                <th className="p-2 text-right">Price</th>
-                                <th className="p-2 text-right">Total</th>
-                                <th className="p-2 w-10"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {cart.map((item, idx) => (
-                                <tr key={idx} className="border-t">
-                                    <td className="p-2">{item.product_name}</td>
-                                    <td className="p-2 text-right">{item.quantity}</td>
-                                    <td className="p-2 text-right">{item.price}</td>
-                                    <td className="p-2 text-right font-medium">{item.total}</td>
-                                    <td className="p-2 text-center">
-                                        <button onClick={() => removeItem(idx)} className="text-red-500 hover:text-red-700">
-                                            <Trash className="w-4 h-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                            {cart.length === 0 && (
-                                <tr><td colSpan={5} className="p-4 text-center text-gray-400">No items added</td></tr>
-                            )}
-                        </tbody>
-                        <tfoot className="bg-gray-50 font-bold">
-                            <tr>
-                                <td colSpan={3} className="p-2 text-right">Total:</td>
-                                <td className="p-2 text-right">{cart.reduce((sum, item) => sum + item.total, 0)}</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                {hasOpenSession === false && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-4 flex justify-between items-center shadow-sm">
+                        <div>
+                            <strong>Session Closed:</strong> You must open a daily cash session first.
+                        </div>
+                        <button onClick={() => navigate('/')} className="text-sm underline hover:text-red-900 font-medium">
+                            Go to Dashboard
+                        </button>
+                    </div>
+                )}
+
+                <div className={`space-y-4 ${hasOpenSession === false ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {/* Supplier Selection */}
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <SearchableSelect
+                            label="Select Supplier"
+                            options={suppliers.map(s => ({
+                                value: s.id,
+                                label: s.name,
+                                subLabel: s.sub_type
+                            }))}
+                            value={selectedSupplier}
+                            onChange={setSelectedSupplier}
+                            placeholder="Search supplier by name..."
+                        />
+                    </div>
+
+                    {/* Product Entry */}
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                        <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                            <Plus className="w-4 h-4" /> Add Item
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div className="md:col-span-5">
+                                <SearchableSelect
+                                    label="Product"
+                                    options={products.map(p => ({
+                                        value: p.id,
+                                        label: p.name,
+                                        subLabel: `Buy: ${p.price_buy}`
+                                    }))}
+                                    value={currentItem.productId}
+                                    onChange={handleProductChange}
+                                    placeholder="Search product..."
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Qty</label>
+                                <input
+                                    type="number"
+                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    value={currentItem.quantity}
+                                    onChange={e => setCurrentItem({ ...currentItem, quantity: Number(e.target.value) })}
+                                    min="1"
+                                />
+                            </div>
+                            <div className="md:col-span-3">
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Price</label>
+                                <input
+                                    type="number"
+                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    value={currentItem.price}
+                                    onChange={e => setCurrentItem({ ...currentItem, price: Number(e.target.value) })}
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <button
+                                    type="button"
+                                    onClick={addItem}
+                                    disabled={!currentItem.productId}
+                                    className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors shadow-sm"
+                                >
+                                    Add
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Product Quick List (Optional - can be added later) */}
+                </div>
+            </div>
+
+            {/* Right Panel: Cart & Payment */}
+            <div className="w-96 bg-white border-l shadow-xl flex flex-col z-20">
+                <div className="p-4 border-b bg-gray-50">
+                    <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                        <ShoppingCart className="w-5 h-5 text-blue-600" />
+                        Current Order
+                        <span className="ml-auto bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                            {cart.length} items
+                        </span>
+                    </h3>
                 </div>
 
-                <div className="flex justify-end pt-4 border-t">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {cart.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2 opacity-60">
+                            <ShoppingCart className="w-12 h-12" />
+                            <p>Cart is empty</p>
+                        </div>
+                    ) : (
+                        cart.map((item, idx) => (
+                            <div key={idx} className="bg-white border rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow relative group">
+                                <button
+                                    onClick={() => removeItem(idx)}
+                                    className="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                                <div className="font-medium text-gray-800 pr-6">{item.product_name}</div>
+                                <div className="flex justify-between items-center mt-2 text-sm text-gray-600">
+                                    <div>
+                                        {item.quantity} x {item.price.toLocaleString()}
+                                    </div>
+                                    <div className="font-bold text-gray-900">
+                                        {item.total.toLocaleString()}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                <div className="p-4 border-t bg-gray-50 space-y-4">
+                    <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Subtotal</span>
+                            <span className="font-medium">{totalAmount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-xl font-bold text-gray-900 pt-2 border-t">
+                            <span>Total</span>
+                            <span>{totalAmount.toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3 pt-2">
+                         <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Paid Amount</label>
+                            <input
+                                type="number"
+                                className="w-full border rounded-lg px-3 py-2 text-lg font-bold text-right focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                value={paidAmount || ''}
+                                placeholder="0"
+                                onChange={(e) => setPaidAmount(Number(e.target.value))}
+                            />
+                        </div>
+
+                        {paidAmount > 0 && (
+                            <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-sm font-medium text-gray-600">Change</span>
+                                    <span className={`text-lg font-bold ${changeAmount > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                        {changeAmount.toLocaleString()}
+                                    </span>
+                                </div>
+                                {paidAmount < totalAmount && (
+                                    <div className="text-right text-xs text-red-500 font-medium">
+                                        Balance Due: {(totalAmount - paidAmount).toLocaleString()}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
                     <button
-                        className="flex items-center gap-2 bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
-                        disabled={cart.length === 0}
+                        className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-blue-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-transform active:scale-[0.98]"
+                        disabled={cart.length === 0 || hasOpenSession === false}
                         onClick={handleSubmit}
                     >
-                        <Save className="w-4 h-4" />
-                        Save Purchase
+                        <Save className="w-5 h-5" />
+                        Complete Purchase
                     </button>
                 </div>
             </div>

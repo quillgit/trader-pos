@@ -58,6 +58,56 @@ export const SyncEngine = {
         }
     },
 
+    async syncAllDown() {
+        if (!navigator.onLine) {
+            console.warn('Cannot sync down while offline');
+            return;
+        }
+
+        const types = ['product', 'partner', 'employee'];
+        const storeMap: Record<string, any> = {
+            'product': stores.masters.products,
+            'partner': stores.masters.partners,
+            'employee': stores.masters.employees
+        };
+
+        for (const type of types) {
+            try {
+                const data = await api.fetchMasters(type);
+                // Handle both array response and wrapped response
+                const items = Array.isArray(data) ? data : (data.data || []);
+                
+                if (Array.isArray(items)) {
+                    const store = storeMap[type];
+                    await store.clear();
+                    for (const item of items) {
+                        // Ensure ID exists, otherwise generate or skip? 
+                        // Master data should have IDs from sheet.
+                        if (item.id) {
+                            await store.setItem(item.id.toString(), item);
+                        }
+                    }
+                    console.log(`Synced down ${items.length} ${type}s`);
+                }
+            } catch (e) {
+                console.error(`Failed to sync down ${type}`, e);
+            }
+        }
+
+        // Sync Settings
+        try {
+            const settings = await api.fetchMasters('settings');
+            if (settings && typeof settings === 'object') {
+                if (settings['COMPANY_NAME']) localStorage.setItem('COMPANY_NAME', settings['COMPANY_NAME']);
+                if (settings['COMPANY_ADDRESS']) localStorage.setItem('COMPANY_ADDRESS', settings['COMPANY_ADDRESS']);
+                if (settings['COMPANY_PHONE']) localStorage.setItem('COMPANY_PHONE', settings['COMPANY_PHONE']);
+                console.log('Synced settings');
+            }
+        } catch (e) {
+            console.error('Failed to sync settings down', e);
+        }
+    },
+
     init() {
         window.addEventListener('online', () => {
             console.log('Online! Processing queue...');

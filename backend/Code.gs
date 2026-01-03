@@ -8,12 +8,14 @@ function doGet(e) {
     if (type === 'product') return jsonResponse(getSheetData(ss, 'master_products'));
     if (type === 'partner') return jsonResponse(getSheetData(ss, 'master_partners'));
     if (type === 'employee') return jsonResponse(getSheetData(ss, 'master_employees'));
+    if (type === 'settings') return jsonResponse(getSettings(ss));
     
     // Return all if no specific type? Or just basic ones.
     return jsonResponse({
       products: getSheetData(ss, 'master_products'),
       partners: getSheetData(ss, 'master_partners'),
-      employees: getSheetData(ss, 'master_employees')
+      employees: getSheetData(ss, 'master_employees'),
+      settings: getSettings(ss)
     });
   }
   
@@ -62,6 +64,9 @@ function handleWrite(ss, data) {
     sheetName = 'master_products';
   } else if (type === 'employee') {
     sheetName = 'master_employees';
+  } else if (type === 'settings') {
+    handleSettingsWrite(ss, payload);
+    return;
   }
 
   if (!sheetName) throw new Error('Unknown Type: ' + type);
@@ -94,6 +99,35 @@ function handleWrite(ss, data) {
   });
   
   sheet.appendRow(row);
+}
+
+function getSettings(ss) {
+  const sheet = ss.getSheetByName('app_settings');
+  if (!sheet) return {};
+  const data = sheet.getDataRange().getValues();
+  const settings = {};
+  // Assuming Key-Value pairs in columns A and B
+  data.forEach(row => {
+    if (row[0]) settings[row[0]] = row[1];
+  });
+  return settings;
+}
+
+function handleSettingsWrite(ss, payload) {
+  let sheet = ss.getSheetByName('app_settings');
+  if (!sheet) {
+    sheet = ss.insertSheet('app_settings');
+    sheet.appendRow(['key', 'value']);
+  }
+  
+  // Clear existing settings or update? Clear and rewrite is simpler for full sync
+  sheet.clear();
+  sheet.appendRow(['key', 'value']);
+  
+  const rows = Object.keys(payload).map(k => [k, payload[k]]);
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, 2).setValues(rows);
+  }
 }
 
 function getSheetData(ss, sheetName) {

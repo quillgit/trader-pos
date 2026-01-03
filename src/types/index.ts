@@ -90,6 +90,8 @@ export const TransactionSchema = z.object({
     partner_name: z.string().optional(),
     items: z.array(TransactionItemSchema),
     total_amount: z.number(),
+    paid_amount: z.number().default(0),
+    change_amount: z.number().default(0),
     sync_status: z.enum(['PENDING', 'SYNCED', 'FAILED']),
     created_by: z.string(), // Employee ID
 });

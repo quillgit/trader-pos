@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Login from '@/pages/Login';
@@ -12,6 +13,7 @@ import SalesList from '@/pages/SalesList';
 import SalesForm from '@/pages/SalesForm';
 import ExpenseForm from '@/pages/ExpenseForm';
 import Settings from '@/pages/Settings';
+import Reports from '@/pages/Reports';
 import HRISDashboard from '@/pages/HRIS/Dashboard';
 import AttendancePage from '@/pages/HRIS/Attendance';
 import PayrollPage from '@/pages/HRIS/Payroll';
@@ -19,6 +21,7 @@ import PayrollPage from '@/pages/HRIS/Payroll';
 function App() {
   return (
     <BrowserRouter>
+      <Toaster position="top-right" />
       <Routes>
         <Route path="/login" element={<Login />} />
 
@@ -36,6 +39,7 @@ function App() {
           <Route path="sales" element={<SalesList />} />
           <Route path="sales/new" element={<SalesForm />} />
           <Route path="expenses/new" element={<ExpenseForm />} />
+          <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
           <Route path="hris" element={<HRISDashboard />} />
           <Route path="hris/attendance" element={<AttendancePage />} />
