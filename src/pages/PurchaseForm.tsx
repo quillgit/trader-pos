@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import { stores } from '@/lib/storage';
 import { SyncEngine } from '@/services/sync';
-import type { Product, Partner, Transaction, TransactionItem } from '@/types';
+import type { Product, Partner, Transaction, TransactionItem, CashSession } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { Trash, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function PurchaseForm() {
     const navigate = useNavigate();
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [suppliers, setSuppliers] = useState<Partner[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
 
     const [selectedSupplier, setSelectedSupplier] = useState('');
     const [cart, setCart] = useState<TransactionItem[]>([]);
+    const [hasOpenSession, setHasOpenSession] = useState<boolean | null>(null);
 
     // Item entry state
     const [currentItem, setCurrentItem] = useState({
@@ -38,6 +40,19 @@ export default function PurchaseForm() {
                 if (s && s.type === 'SUPPLIER') supplierList.push(s);
             }
             setSuppliers(supplierList);
+            setSuppliers(supplierList);
+
+            // Check Session
+            const sessionKeys = await stores.transactions.sessions.keys();
+            let active = false;
+            for (const k of sessionKeys) {
+                const s = await stores.transactions.sessions.getItem<CashSession>(k);
+                if (s && s.status === 'OPEN') {
+                    active = true;
+                    break;
+                }
+            }
+            setHasOpenSession(active);
         };
         loadMasters();
     }, []);
@@ -88,7 +103,7 @@ export default function PurchaseForm() {
 
         const trx: Transaction = {
             id: uuidv4(),
-            date: new Date().toISOString(),
+            date: new Date(date).toISOString(),
             type: 'PURCHASE',
             partner_id: selectedSupplier,
             partner_name: supplier?.name,
@@ -110,7 +125,20 @@ export default function PurchaseForm() {
         <div className="space-y-6 max-w-2xl mx-auto py-6">
             <h2 className="text-2xl font-bold">New Purchase</h2>
 
-            <div className="bg-white p-4 rounded-md border shadow-sm space-y-4">
+            <h2 className="text-2xl font-bold">New Purchase</h2>
+
+            {hasOpenSession === false && (
+                <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md mb-4 flex justify-between items-center">
+                    <div>
+                        <strong>Session Closed:</strong> You must open a daily cash session before recording purchases.
+                    </div>
+                    <button onClick={() => navigate('/')} className="text-sm underline hover:text-red-900">
+                        Go to Dashboard
+                    </button>
+                </div>
+            )}
+
+            <div className={`bg-white p-4 rounded-md border shadow-sm space-y-4 ${hasOpenSession === false ? 'opacity-50 pointer-events-none' : ''}`}>
                 <div>
                     <label className="block text-sm font-medium mb-1">Supplier</label>
                     <select
@@ -121,6 +149,16 @@ export default function PurchaseForm() {
                         <option value="">Select Supplier...</option>
                         {suppliers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.sub_type})</option>)}
                     </select>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium mb-1">Date</label>
+                    <input
+                        type="date"
+                        className="w-full border rounded p-2"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                    />
                 </div>
 
                 <div className="border-t pt-4">

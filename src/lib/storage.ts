@@ -19,6 +19,8 @@ export const stores = {
         purchases: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'trx_purchases' }),
         sales: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'trx_sales' }),
         attendance: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'trx_attendance' }),
+        sessions: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'trx_sessions' }),
+        expenses: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'trx_expenses' }),
     },
     syncQueue: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'sync_queue' }),
     meta: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'meta_data' }) // For last sync time, etc.
@@ -33,6 +35,8 @@ export const StorageService = {
             stores.transactions.purchases.clear(),
             stores.transactions.sales.clear(),
             stores.transactions.attendance.clear(),
+            stores.transactions.sessions.clear(),
+            stores.transactions.expenses.clear(),
             stores.syncQueue.clear(),
             stores.meta.clear(),
         ]);

@@ -1,14 +1,17 @@
-export const API_BASE = '/api';
+export const getApiUrl = () => localStorage.getItem('OFFLINE_TRADER_API_URL') || '';
 
 export const api = {
     async sync(payload: any) {
-        const response = await fetch(`${API_BASE}/sync`, {
+        const baseUrl = getApiUrl();
+        if (!baseUrl) throw new Error('API URL not configured');
+
+        // Google Apps Script usually takes query params for routing or looks at body
+        // We'll send ?action=sync for clarity, though payload has action too
+        const response = await fetch(`${baseUrl}?action=sync`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
             body: JSON.stringify(payload),
         });
+
         if (!response.ok) {
             throw new Error(`Sync failed: ${response.statusText}`);
         }
@@ -16,7 +19,10 @@ export const api = {
     },
 
     async fetchMasters(type: string) {
-        const response = await fetch(`${API_BASE}/master/${type}`);
+        const baseUrl = getApiUrl();
+        if (!baseUrl) throw new Error('API URL not configured');
+
+        const response = await fetch(`${baseUrl}?action=getMaster&type=${type}`);
         if (!response.ok) {
             throw new Error(`Fetch masters failed: ${response.statusText}`);
         }

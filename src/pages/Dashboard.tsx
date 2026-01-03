@@ -1,10 +1,13 @@
 import { Link } from 'react-router-dom';
 import { Package, Users, ShoppingCart, FileText } from 'lucide-react';
+import CashSessionWidget from '@/components/CashSessionWidget';
 
 export default function Dashboard() {
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
+
+            <CashSessionWidget />
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatsCard label="Products" value="--" icon={Package} to="/products" color="bg-blue-500" />
@@ -22,6 +25,9 @@ export default function Dashboard() {
                     </Link>
                     <Link to="/sales/new" className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium text-sm">
                         New Sale
+                    </Link>
+                    <Link to="/expenses/new" className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-medium text-sm">
+                        Record Expense
                     </Link>
                 </div>
             </div>

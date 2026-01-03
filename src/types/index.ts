@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+export const SalaryComponentSchema = z.object({
+    name: z.string(),
+    amount: z.number().min(0),
+    type: z.enum(['ALLOWANCE', 'DEDUCTION'])
+});
+export type SalaryComponent = z.infer<typeof SalaryComponentSchema>;
+
 // --- MASTERS ---
 
 export const ProductSchema = z.object({
@@ -16,8 +23,10 @@ export type Product = z.infer<typeof ProductSchema>;
 export const PartnerSchema = z.object({
     id: z.string().uuid(),
     name: z.string().min(1),
-    type: z.enum(['SUPPLIER', 'CUSTOMER']),
-    sub_type: z.enum(['PERSONAL', 'BUSINESS']), // Personal suppliers might be tax-exempt logic later
+    type: z.enum(['SUPPLIER', 'CUSTOMER']).optional(), // Deprecated, kept for migration if needed
+    is_supplier: z.boolean().default(false),
+    is_customer: z.boolean().default(false),
+    sub_type: z.enum(['PERSONAL', 'BUSINESS']),
     phone: z.string().optional(),
     address: z.string().optional(),
     updated_at: z.string(),
@@ -29,9 +38,38 @@ export const EmployeeSchema = z.object({
     name: z.string().min(1),
     pin: z.string().length(6), // Simple PIN auth
     role: z.enum(['ADMIN', 'FINANCE', 'WAREHOUSE', 'HR', 'FIELD']),
+    salary_frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']).optional().default('MONTHLY'),
+    base_salary: z.number().min(0).optional().default(0),
+    salary_components: z.array(SalaryComponentSchema).optional().default([]),
     updated_at: z.string(),
 });
 export type Employee = z.infer<typeof EmployeeSchema>;
+
+// --- CASH SESSION & EXPENSES ---
+
+export const CashSessionSchema = z.object({
+    id: z.string().uuid(),
+    date: z.string(), // ISO date
+    start_amount: z.number().min(0),
+    end_amount: z.number().optional(),
+    status: z.enum(['OPEN', 'CLOSED']),
+    created_by: z.string(), // Employee ID
+    closed_by: z.string().optional(),
+    transactions_count: z.number().default(0),
+    expenses_count: z.number().default(0),
+});
+export type CashSession = z.infer<typeof CashSessionSchema>;
+
+export const ExpenseSchema = z.object({
+    id: z.string().uuid(),
+    date: z.string(), // ISO datetime
+    amount: z.number().min(0),
+    category: z.enum(['FUEL', 'FOOD', 'MAINTENANCE', 'SALARY', 'OTHER']),
+    description: z.string(),
+    created_by: z.string(), // Employee ID
+    cash_session_id: z.string().optional(),
+});
+export type Expense = z.infer<typeof ExpenseSchema>;
 
 // --- TRANSACTIONS ---
 
