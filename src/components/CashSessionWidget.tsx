@@ -1,43 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { stores } from '@/lib/storage';
 import { CashSessionSchema } from '@/types';
 import type { CashSession } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { Lock, Unlock } from 'lucide-react';
+import { Lock, Unlock, Wallet } from 'lucide-react';
 import { SyncEngine } from '@/services/sync';
+import { useCashSession } from '@/hooks/use-cash-session';
 
 export default function CashSessionWidget() {
-    const [currentSession, setCurrentSession] = useState<CashSession | null>(null);
-    const [loading, setLoading] = useState(true);
+    const { session: currentSession, balance, refreshSession, loading } = useCashSession();
     const [amountInput, setAmountInput] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
-
-    useEffect(() => {
-        checkActiveSession();
-    }, []);
-
-    const checkActiveSession = async () => {
-        setLoading(true);
-        try {
-            const keys = await stores.transactions.sessions.keys();
-            let active: CashSession | null = null;
-
-            // Find the most recent open session
-            // In a real app we might maximize performance by keeping a pointer to active session
-            for (const key of keys) {
-                const session = await stores.transactions.sessions.getItem<CashSession>(key);
-                if (session && session.status === 'OPEN') {
-                    active = session;
-                    break;
-                }
-            }
-            setCurrentSession(active);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleOpenSession = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -65,7 +38,7 @@ export default function CashSessionWidget() {
             await stores.transactions.sessions.setItem(newSession.id, newSession);
             await SyncEngine.addToQueue('session', 'create', newSession);
 
-            setCurrentSession(newSession);
+            await refreshSession();
             setAmountInput('');
         } catch (error: any) {
             alert('Error starting session: ' + error.message);
@@ -96,7 +69,7 @@ export default function CashSessionWidget() {
             await stores.transactions.sessions.setItem(updatedSession.id, updatedSession);
             await SyncEngine.addToQueue('session', 'close', updatedSession);
 
-            setCurrentSession(null);
+            await refreshSession();
             setAmountInput('');
         } catch (error: any) {
             alert('Error closing session: ' + error.message);
@@ -148,27 +121,41 @@ export default function CashSessionWidget() {
                     </div>
                     <div className="text-xs text-green-600">
                         Started: {new Date(currentSession.date).toLocaleTimeString()} <br />
-                        Opening Balance: <span className="font-bold">{currentSession.start_amount.toLocaleString()}</span>
+                        Opening: <span className="font-bold">{currentSession.start_amount.toLocaleString()}</span>
+                    </div>
+                </div>
+
+                <div className="flex-1 flex flex-col items-center justify-center px-4">
+                    <div className="text-xs text-green-600 font-bold uppercase tracking-wide">Current Cash</div>
+                    <div className="text-2xl font-bold text-green-800 flex items-center gap-1">
+                        <Wallet className="w-5 h-5 text-green-600" />
+                        {balance.toLocaleString()}
                     </div>
                 </div>
 
                 <form onSubmit={handleCloseSession} className="flex flex-col gap-2 items-end">
-                    <div className="flex gap-2">
-                        <input
-                            type="number"
-                            placeholder="Closing Cash"
-                            className="border rounded px-2 py-1 text-xs w-32"
-                            value={amountInput}
-                            onChange={e => setAmountInput(e.target.value)}
-                            required
-                            min="0"
-                        />
+                    <div className="flex gap-2 items-center">
+                        <div className="text-right">
+                            <label className="block text-[10px] text-green-700 font-bold uppercase">End Amount</label>
+                            <input
+                                type="number"
+                                placeholder="Expected..."
+                                className="border rounded px-2 py-1 text-xs w-24 text-right font-bold"
+                                value={amountInput}
+                                onChange={e => setAmountInput(e.target.value)}
+                                required
+                                min="0"
+                            />
+                        </div>
                         <button
                             disabled={isProcessing}
-                            className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 disabled:opacity-50"
+                            className="bg-green-600 text-white px-3 py-3 rounded text-xs hover:bg-green-700 disabled:opacity-50 h-full mt-3"
                         >
                             {isProcessing ? 'Closing...' : 'Close'}
                         </button>
+                    </div>
+                    <div className="text-[10px] text-green-600 cursor-pointer hover:underline" onClick={() => setAmountInput(balance.toString())}>
+                        Use calculated: {balance.toLocaleString()}
                     </div>
                 </form>
             </div>

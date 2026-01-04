@@ -11,7 +11,10 @@ import PurchasesList from '@/pages/PurchasesList';
 import PurchaseForm from '@/pages/PurchaseForm';
 import SalesList from '@/pages/SalesList';
 import SalesForm from '@/pages/SalesForm';
+import ExpensesList from '@/pages/ExpensesList';
 import ExpenseForm from '@/pages/ExpenseForm';
+import CashIn from '@/pages/CashIn';
+import CashOut from '@/pages/CashOut';
 import Settings from '@/pages/Settings';
 import Reports from '@/pages/Reports';
 import HRISDashboard from '@/pages/HRIS/Dashboard';
@@ -38,7 +41,10 @@ function App() {
           <Route path="purchases/new" element={<PurchaseForm />} />
           <Route path="sales" element={<SalesList />} />
           <Route path="sales/new" element={<SalesForm />} />
+          <Route path="expenses" element={<ExpensesList />} />
           <Route path="expenses/new" element={<ExpenseForm />} />
+          <Route path="cash-in" element={<CashIn />} />
+          <Route path="cash-out" element={<CashOut />} />
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
           <Route path="hris" element={<HRISDashboard />} />

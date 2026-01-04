@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useOfflineStatus } from '@/hooks/use-offline';
 import { cn } from '@/lib/utils';
-import { Home, Package, Users, ShoppingCart, Wifi, WifiOff, FileText, UserCircle, Settings, UserPlus, Menu, FileBarChart } from 'lucide-react';
+import { Home, Package, Users, ShoppingCart, Wifi, WifiOff, FileText, UserCircle, Settings, UserPlus, Menu, FileBarChart, Wallet, CreditCard, Banknote } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 
@@ -21,6 +21,9 @@ export default function Layout() {
         { label: 'Partners', path: '/partners', icon: Users },
         { label: 'Purchases', path: '/purchases', icon: ShoppingCart },
         { label: 'Sales', path: '/sales', icon: FileText },
+        { label: 'Expenses', path: '/expenses', icon: Banknote },
+        { label: 'Cash In', path: '/cash-in', icon: Wallet },
+        { label: 'Cash Out', path: '/cash-out', icon: CreditCard },
         { label: 'Reports', path: '/reports', icon: FileBarChart },
         { label: 'Employees', path: '/employees', icon: UserPlus },
         { label: 'HRIS', path: '/hris', icon: UserCircle },

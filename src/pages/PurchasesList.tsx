@@ -25,7 +25,7 @@ export default function PurchasesList() {
             const list: Transaction[] = [];
             for (const k of keys) {
                 const item = await stores.transactions.purchases.getItem<Transaction>(k);
-                if (item) list.push(item);
+                if (item && item.type === 'PURCHASE') list.push(item);
             }
             // Sort by date desc
             list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

@@ -25,7 +25,7 @@ export default function SalesList() {
             const list: Transaction[] = [];
             for (const k of keys) {
                 const item = await stores.transactions.sales.getItem<Transaction>(k);
-                if (item) list.push(item);
+                if (item && item.type === 'SALE') list.push(item);
             }
             list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setSales(list);

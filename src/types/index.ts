@@ -64,6 +64,7 @@ export const ExpenseSchema = z.object({
     id: z.string().uuid(),
     date: z.string(), // ISO datetime
     amount: z.number().min(0),
+    currency: z.string().default('IDR'),
     category: z.enum(['FUEL', 'FOOD', 'MAINTENANCE', 'SALARY', 'OTHER']),
     description: z.string(),
     created_by: z.string(), // Employee ID
@@ -85,13 +86,16 @@ export type TransactionItem = z.infer<typeof TransactionItemSchema>;
 export const TransactionSchema = z.object({
     id: z.string().uuid(),
     date: z.string(), // ISO
-    type: z.enum(['PURCHASE', 'SALE']),
+    type: z.enum(['PURCHASE', 'SALE', 'PAYMENT_IN', 'PAYMENT_OUT']),
     partner_id: z.string().uuid().optional(), // Optional for cash sales? No, usually tracked.
     partner_name: z.string().optional(),
     items: z.array(TransactionItemSchema),
     total_amount: z.number(),
     paid_amount: z.number().default(0),
     change_amount: z.number().default(0),
+    currency: z.string().default('IDR'),
+    reference_id: z.string().optional(), // For linking payments to original transaction
+    cash_session_id: z.string().optional(),
     sync_status: z.enum(['PENDING', 'SYNCED', 'FAILED']),
     created_by: z.string(), // Employee ID
 });

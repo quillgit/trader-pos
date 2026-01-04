@@ -1,52 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Wallet } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { stores } from '@/lib/storage';
 import { SyncEngine } from '@/services/sync';
 import { ExpenseSchema } from '@/types';
-import type { Expense, CashSession } from '@/types';
+import type { Expense } from '@/types';
+import { useCashSession } from '@/hooks/use-cash-session';
 
 export default function ExpenseForm() {
     const navigate = useNavigate();
+    const { session, balance } = useCashSession();
     const [loading, setLoading] = useState(false);
-    const [currentSession, setCurrentSession] = useState<CashSession | null>(null);
 
     const [formData, setFormData] = useState<Partial<Expense>>({
         date: new Date().toISOString().split('T')[0],
         amount: 0,
+        currency: 'IDR',
         category: 'OTHER',
         description: ''
     });
-
-    useEffect(() => {
-        // Check for open session to link expense
-        const checkSession = async () => {
-            const keys = await stores.transactions.sessions.keys();
-            for (const key of keys) {
-                const session = await stores.transactions.sessions.getItem<CashSession>(key);
-                if (session && session.status === 'OPEN') {
-                    setCurrentSession(session);
-                    break;
-                }
-            }
-        };
-        checkSession();
-    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         try {
+            if (session && Number(formData.amount) > balance) {
+                 throw new Error(`Insufficient session cash! Available: ${balance.toLocaleString()}`);
+            }
+
             const newExpense: Expense = {
                 id: uuidv4(),
                 date: new Date().toISOString(), // Use full ISO for storage
                 amount: Number(formData.amount),
+                currency: formData.currency || 'IDR',
                 category: formData.category as any,
                 description: formData.description || '',
                 created_by: 'CURRENT_USER',
-                cash_session_id: currentSession?.id
+                cash_session_id: session?.id
             };
 
             const result = ExpenseSchema.safeParse(newExpense);
@@ -57,10 +49,10 @@ export default function ExpenseForm() {
 
             // If linked to a session, update the session counts? 
             // Currently session schema has 'expenses_count', we might want to increment that.
-            if (currentSession) {
+            if (session) {
                 const updatedSession = {
-                    ...currentSession,
-                    expenses_count: (currentSession.expenses_count || 0) + 1
+                    ...session,
+                    expenses_count: (session.expenses_count || 0) + 1
                 };
                 await stores.transactions.sessions.setItem(updatedSession.id, updatedSession);
             }
@@ -84,9 +76,9 @@ export default function ExpenseForm() {
 
             <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg border shadow-sm space-y-4 max-w-lg">
 
-                {currentSession ? (
+                {session ? (
                     <div className="text-xs text-green-600 bg-green-50 p-2 rounded border border-green-100 mb-2">
-                        Linked to Active Cash Session ({new Date(currentSession.date).toLocaleDateString()})
+                        Linked to Active Cash Session ({new Date(session.date).toLocaleDateString()})
                     </div>
                 ) : (
                     <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-100 mb-2">
@@ -106,16 +98,32 @@ export default function ExpenseForm() {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium mb-1">Amount</label>
-                    <input
-                        type="number"
-                        className="w-full border rounded px-3 py-2 text-lg font-mono"
-                        value={formData.amount || ''}
-                        onChange={e => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
-                        required
-                        min="0"
-                        step="0.01"
-                    />
+                    <label className="block text-sm font-medium mb-1 flex justify-between">
+                        <span>Amount</span>
+                        <span className="text-xs text-blue-600 flex items-center gap-1">
+                            <Wallet className="w-3 h-3" />
+                            Max: {balance.toLocaleString()}
+                        </span>
+                    </label>
+                    <div className="flex gap-2">
+                        <select
+                            className="border rounded-md px-3 py-2 bg-gray-50 text-sm font-medium"
+                            value={formData.currency}
+                            onChange={e => setFormData({ ...formData, currency: e.target.value })}
+                        >
+                            <option value="IDR">IDR</option>
+                            <option value="USD">USD</option>
+                        </select>
+                        <input
+                            type="number"
+                            required
+                            min="0"
+                            step="0.01"
+                            className="flex-1 border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            value={formData.amount}
+                            onChange={e => setFormData({ ...formData, amount: Number(e.target.value) })}
+                        />
+                    </div>
                 </div>
 
                 <div>
