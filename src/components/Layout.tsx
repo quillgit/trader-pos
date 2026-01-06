@@ -26,10 +26,11 @@ interface NavGroup {
 }
 
 export default function Layout() {
-    const { isOnline } = useOfflineStatus();
+    const { isOnline, checkConnection } = useOfflineStatus();
     const location = useLocation();
     const { user, logout } = useAuth();
     const [companyName, setCompanyName] = useState('ComTrade');
+    const [isChecking, setIsChecking] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -129,7 +130,11 @@ export default function Layout() {
                     <div className="flex items-center justify-between text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
                         <span>System Status</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm bg-white p-2 rounded border shadow-sm">
+                    <div 
+                        className="flex items-center gap-2 text-sm bg-white p-2 rounded border shadow-sm cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => checkConnection()}
+                        title="Click to check connection"
+                    >
                         <div className={cn("w-2 h-2 rounded-full", isOnline ? "bg-green-500" : "bg-red-500")} />
                         <span className={isOnline ? "text-green-700" : "text-red-700"}>
                             {isOnline ? "System Online" : "Offline Mode"}
@@ -216,6 +221,17 @@ export default function Layout() {
                                     <span className="font-semibold">You are currently offline.</span>
                                     <span className="block text-xs mt-0.5 opacity-90">Changes will be saved locally and synced automatically when connection is restored.</span>
                                 </div>
+                                <button 
+                                    onClick={async () => {
+                                        setIsChecking(true);
+                                        await checkConnection();
+                                        setIsChecking(false);
+                                    }}
+                                    disabled={isChecking}
+                                    className="px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded text-xs font-bold transition-colors border border-amber-300"
+                                >
+                                    {isChecking ? 'Checking...' : 'Retry'}
+                                </button>
                             </div>
                         )}
                         <Outlet />

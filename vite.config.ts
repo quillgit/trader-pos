@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['vite.svg', 'pwa-icon.svg'],
+      includeAssets: ['vite.svg', 'pwa-icon.svg','logo-traderpos.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,txt}'],
         cleanupOutdatedCaches: true,
@@ -17,24 +17,24 @@ export default defineConfig({
         skipWaiting: true,
       },
       manifest: {
-        name: 'Commodity Trader PWA',
-        short_name: 'ComTrade',
-        description: 'Offline-first commodity trading app',
+        name: 'TraderPOS',
+        short_name: 'TPOS',
+        description: 'Offline-first POS commodity trading app',
         theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
         icons: [
           {
-            src: 'pwa-icon.svg',
+            src: 'logo-traderpos.png',
             sizes: '192x192', // SVGs can be any size, but manifest likes dimensions
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any maskable'
           },
           {
-            src: 'pwa-icon.svg',
+            src: 'logo-traderpos.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any maskable'
           }
         ]
