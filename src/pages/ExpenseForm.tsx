@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, Wallet, X } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { stores } from '@/lib/storage';
 import { SyncEngine } from '@/services/sync';
 import { ExpenseSchema } from '@/types';
-import type { Expense } from '@/types';
+import type { Expense, ExpenseCategory } from '@/types';
 import { useCashSession } from '@/hooks/use-cash-session';
 import { formatCurrency } from '@/lib/utils';
 import { MoneyInput } from '@/components/ui/MoneyInput';
@@ -18,14 +18,38 @@ export default function ExpenseForm() {
     const { session, balance, isExpired } = useCashSession();
     const [loading, setLoading] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+
+    useEffect(() => {
+        const loadCategories = async () => {
+            const keys = await stores.masters.expense_categories.keys();
+            const list: ExpenseCategory[] = [];
+            for (const k of keys) {
+                const item = await stores.masters.expense_categories.getItem<ExpenseCategory>(k);
+                if (item && item.is_active) list.push(item);
+            }
+            list.sort((a, b) => a.name.localeCompare(b.name));
+            setCategories(list);
+        };
+        loadCategories();
+    }, []);
 
     const [formData, setFormData] = useState<Partial<Expense>>({
         date: new Date().toISOString().split('T')[0],
         amount: 0,
         currency: 'IDR',
-        category: 'OTHER',
+        category: '', // Default to empty, force selection
         description: ''
     });
+
+    // Set default category if no master categories exist
+    useEffect(() => {
+        if (categories.length === 0 && !formData.category) {
+            setFormData(prev => ({ ...prev, category: 'OTHER' }));
+        } else if (categories.length > 0 && !formData.category) {
+            setFormData(prev => ({ ...prev, category: categories[0].name }));
+        }
+    }, [categories]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -148,11 +172,19 @@ export default function ExpenseForm() {
                         value={formData.category}
                         onChange={e => setFormData({ ...formData, category: e.target.value as any })}
                     >
-                        <option value="FUEL">Fuel</option>
-                        <option value="FOOD">Food</option>
-                        <option value="MAINTENANCE">Maintenance</option>
-                        <option value="SALARY">Salary</option>
-                        <option value="OTHER">Other</option>
+                        {categories.length > 0 ? (
+                            categories.map(c => (
+                                <option key={c.id} value={c.name}>{c.name}</option>
+                            ))
+                        ) : (
+                            <>
+                                <option value="FUEL">Fuel</option>
+                                <option value="FOOD">Food</option>
+                                <option value="MAINTENANCE">Maintenance</option>
+                                <option value="SALARY">Salary</option>
+                                <option value="OTHER">Other</option>
+                            </>
+                        )}
                     </select>
                 </div>
 

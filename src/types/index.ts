@@ -61,12 +61,22 @@ export const CashSessionSchema = z.object({
 });
 export type CashSession = z.infer<typeof CashSessionSchema>;
 
+export const ExpenseCategorySchema = z.object({
+    id: z.string().uuid(),
+    name: z.string().min(1),
+    description: z.string().optional(),
+    is_active: z.boolean().default(true),
+    created_at: z.string(),
+    updated_at: z.string(),
+});
+export type ExpenseCategory = z.infer<typeof ExpenseCategorySchema>;
+
 export const ExpenseSchema = z.object({
     id: z.string().uuid(),
     date: z.string(), // ISO datetime
     amount: z.number().min(0),
     currency: z.string().default('IDR'),
-    category: z.enum(['FUEL', 'FOOD', 'MAINTENANCE', 'SALARY', 'OTHER']),
+    category: z.string(), // Changed from enum to string to support dynamic categories
     description: z.string(),
     created_by: z.string(), // Employee ID
     cash_session_id: z.string().optional(),

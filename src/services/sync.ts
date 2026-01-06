@@ -64,11 +64,12 @@ export const SyncEngine = {
             return;
         }
 
-        const types = ['product', 'partner', 'employee'];
+        const types = ['product', 'partner', 'employee', 'expense_category'];
         const storeMap: Record<string, any> = {
             'product': stores.masters.products,
             'partner': stores.masters.partners,
-            'employee': stores.masters.employees
+            'employee': stores.masters.employees,
+            'expense_category': stores.masters.expense_categories
         };
 
         for (const type of types) {

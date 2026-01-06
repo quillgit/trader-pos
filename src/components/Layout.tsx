@@ -70,7 +70,8 @@ export default function Layout() {
             title: 'Master Data',
             items: [
                 { label: 'Products', path: '/products', icon: Package, roles: ['ADMIN', 'FINANCE', 'WAREHOUSE'] },
-                { label: 'Partners', path: '/partners', icon: Users, roles: ['ADMIN', 'FINANCE', 'FIELD'] }
+                { label: 'Partners', path: '/partners', icon: Users, roles: ['ADMIN', 'FINANCE', 'FIELD'] },
+                { label: 'Expense Categories', path: '/expense-categories', icon: Banknote, roles: ['ADMIN', 'FINANCE'] }
             ]
         },
         // {

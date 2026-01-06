@@ -10,6 +10,7 @@ import Dashboard from '@/pages/Dashboard';
 import ProductMaster from '@/pages/ProductMaster';
 import PartnerMaster from '@/pages/PartnerMaster';
 import EmployeeMaster from '@/pages/EmployeeMaster';
+import ExpenseCategoryMaster from '@/pages/ExpenseCategoryMaster';
 import PurchasesList from '@/pages/PurchasesList';
 import PurchaseForm from '@/pages/PurchaseForm';
 import SalesList from '@/pages/SalesList';
@@ -61,6 +62,11 @@ function App() {
             <Route path="employees" element={
               <RoleRoute roles={['ADMIN', 'HR']}>
                 <EmployeeMaster />
+              </RoleRoute>
+            } />
+            <Route path="expense-categories" element={
+              <RoleRoute roles={['ADMIN', 'FINANCE']}>
+                <ExpenseCategoryMaster />
               </RoleRoute>
             } />
 
