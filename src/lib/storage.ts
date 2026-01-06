@@ -14,6 +14,8 @@ export const stores = {
         products: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'master_products' }),
         partners: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'master_partners' }),
         employees: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'master_employees' }),
+        payroll_components: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'master_payroll_components' }),
+        payroll_lines: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'master_payroll_lines' }),
     },
     transactions: {
         purchases: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'trx_purchases' }),
@@ -21,6 +23,7 @@ export const stores = {
         attendance: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'trx_attendance' }),
         sessions: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'trx_sessions' }),
         expenses: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'trx_expenses' }),
+        hr_adjustments: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'trx_hr_adjustments' }),
     },
     syncQueue: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'sync_queue' }),
     meta: localforage.createInstance({ name: 'commodity-trader-pwa', storeName: 'meta_data' }) // For last sync time, etc.

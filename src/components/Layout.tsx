@@ -3,8 +3,8 @@ import { useOfflineStatus } from '@/hooks/use-offline';
 import { cn } from '@/lib/utils';
 import { 
     Home, Package, Users, ShoppingCart, Wifi, WifiOff, FileText, 
-    UserCircle, Settings, UserPlus, Menu, FileBarChart, Wallet, 
-    CreditCard, Banknote, LogOut, LayoutDashboard
+    Settings, Menu, FileBarChart, Wallet, 
+    CreditCard, Banknote, LogOut
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -73,15 +73,15 @@ export default function Layout() {
                 { label: 'Partners', path: '/partners', icon: Users, roles: ['ADMIN', 'FINANCE', 'FIELD'] }
             ]
         },
-        {
-            title: 'HRIS',
-            items: [
-                { label: 'Attendance', path: '/hris/attendance', icon: UserCircle },
-                { label: 'HR Dashboard', path: '/hris', icon: LayoutDashboard, roles: ['ADMIN', 'HR'] },
-                { label: 'Employees', path: '/employees', icon: UserPlus, roles: ['ADMIN', 'HR'] },
-                { label: 'Payroll', path: '/hris/payroll', icon: Banknote, roles: ['ADMIN', 'HR'] }
-            ]
-        },
+        // {
+        //     title: 'HRIS',
+        //     items: [
+        //         { label: 'Attendance', path: '/hris/attendance', icon: UserCircle },
+        //         { label: 'HR Dashboard', path: '/hris', icon: LayoutDashboard, roles: ['ADMIN', 'HR'] },
+        //         { label: 'Employees', path: '/employees', icon: UserPlus, roles: ['ADMIN', 'HR'] },
+        //         { label: 'Payroll', path: '/hris/payroll', icon: Banknote, roles: ['ADMIN', 'HR'] }
+        //     ]
+        // },
         {
             title: 'Analytics',
             items: [

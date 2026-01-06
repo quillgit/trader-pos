@@ -4,7 +4,7 @@ import { SyncEngine } from '@/services/sync';
 import type { Product } from '@/types';
 import { ProductSchema } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Edit2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import { toast } from 'react-hot-toast';
@@ -14,6 +14,7 @@ export default function ProductMaster() {
     const [products, setProducts] = useState<Product[]>([]);
     const [isFormOpen, setFormOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [editId, setEditId] = useState<string | null>(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -41,7 +42,7 @@ export default function ProductMaster() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const newProduct: Product = {
-            id: uuidv4(),
+            id: editId || uuidv4(),
             name: formData.name,
             unit: formData.unit,
             category: formData.category,
@@ -61,12 +62,31 @@ export default function ProductMaster() {
         await stores.masters.products.setItem(newProduct.id, newProduct);
 
         // Add to Sync Queue
-        await SyncEngine.addToQueue('product', 'create', newProduct);
+        await SyncEngine.addToQueue('product', editId ? 'update' : 'create', newProduct);
 
         // Refresh UI
         setFormData({ name: '', unit: 'kg', category: 'General', price_buy: 0, price_sell: 0 });
         setFormOpen(false);
+        setEditId(null);
         fetchProducts();
+    };
+
+    const handleEdit = (product: Product) => {
+        setEditId(product.id);
+        setFormData({
+            name: product.name,
+            unit: product.unit,
+            category: product.category,
+            price_buy: product.price_buy,
+            price_sell: product.price_sell
+        });
+        setFormOpen(true);
+    };
+
+    const handleCancel = () => {
+        setFormOpen(false);
+        setEditId(null);
+        setFormData({ name: '', unit: 'kg', category: 'General', price_buy: 0, price_sell: 0 });
     };
 
     const filteredProducts = products.filter(p =>
@@ -134,7 +154,7 @@ export default function ProductMaster() {
                             </div>
                         </div>
                         <div className="flex justify-end gap-2 mt-4">
-                            <button type="button" onClick={() => setFormOpen(false)} className="px-3 py-1 border rounded text-sm">Cancel</button>
+                            <button type="button" onClick={handleCancel} className="px-3 py-1 border rounded text-sm">Cancel</button>
                             <button type="submit" className="px-3 py-1 bg-green-600 text-white rounded text-sm">Save</button>
                         </div>
                     </form>
@@ -157,14 +177,23 @@ export default function ProductMaster() {
                 ) : (
                     <ul className="divide-y">
                         {filteredProducts.map(p => (
-                            <li key={p.id} className="p-3 hover:bg-gray-50 flex justify-between items-center">
+                            <li key={p.id} className="p-3 hover:bg-gray-50 flex justify-between items-center group">
                                 <div>
                                     <div className="font-medium">{p.name}</div>
                                     <div className="text-xs text-gray-500">{p.category} • {p.unit}</div>
                                 </div>
-                                <div className="text-right text-sm">
-                                    <div className="text-green-600">Buy: {formatCurrency(p.price_buy)}</div>
-                                    <div className="text-blue-600">Sell: {formatCurrency(p.price_sell)}</div>
+                                <div className="flex items-center gap-4">
+                                    <div className="text-right text-sm">
+                                        <div className="text-green-600">Buy: {formatCurrency(p.price_buy)}</div>
+                                        <div className="text-blue-600">Sell: {formatCurrency(p.price_sell)}</div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleEdit(p)}
+                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                        title="Edit Product"
+                                    >
+                                        <Edit2 className="w-4 h-4" />
+                                    </button>
                                 </div>
                             </li>
                         ))}

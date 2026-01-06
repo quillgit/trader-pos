@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { stores } from '@/lib/storage';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, exportXLSX } from '@/lib/utils';
 import type { Transaction } from '@/types';
 import { Link } from 'react-router-dom';
 import { Plus, Search, ChevronLeft, ChevronRight, Printer, X } from 'lucide-react';
@@ -105,6 +105,27 @@ export default function SalesList() {
                     value={endDate}
                     onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }}
                 />
+                <button
+                    onClick={() => {
+                        const headers = ['ID','Date','Customer','Items','Total','Paid','Change','PaymentMethod','Status','Notes'];
+                        const rows = filteredSales.map(t => ({
+                            ID: t.id,
+                            Date: new Date(t.date).toLocaleString(),
+                            Customer: t.partner_name || 'Cash Customer',
+                            Items: t.items.map(i => `${i.product_name} x${i.quantity} @${i.price}`).join('; '),
+                            Total: t.total_amount,
+                            Paid: t.paid_amount ?? 0,
+                            Change: t.change_amount ?? 0,
+                            PaymentMethod: t.payment_method,
+                            Status: t.sync_status,
+                            Notes: t.notes || ''
+                        }));
+                        exportXLSX(`sales_${startDate || 'all'}_${endDate || 'all'}`, 'Sales', headers, rows);
+                    }}
+                    className="px-3 py-2 bg-green-600 text-white rounded-md text-sm"
+                >
+                    Export
+                </button>
             </div>
 
             {/* List */}

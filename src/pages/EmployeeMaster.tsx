@@ -73,6 +73,7 @@ export default function EmployeeMaster() {
             updated_at: new Date().toISOString(),
             salary_frequency: formData.salary_frequency as any || 'MONTHLY',
             base_salary: Number(formData.base_salary) || 0,
+            base_salary_method: 'FIXED',
             salary_components: formData.salary_components || []
         };
 

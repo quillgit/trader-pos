@@ -40,6 +40,7 @@ export const EmployeeSchema = z.object({
     role: z.enum(['ADMIN', 'FINANCE', 'WAREHOUSE', 'HR', 'FIELD']),
     salary_frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']).optional().default('MONTHLY'),
     base_salary: z.number().min(0).optional().default(0),
+    base_salary_method: z.enum(['FIXED', 'DAILY_RATE']).optional().default('FIXED'),
     salary_components: z.array(SalaryComponentSchema).optional().default([]),
     updated_at: z.string(),
 });
@@ -111,6 +112,41 @@ export const AttendanceSchema = z.object({
     sync_status: z.enum(['PENDING', 'SYNCED', 'FAILED']),
 });
 export type Attendance = z.infer<typeof AttendanceSchema>;
+
+export const PayrollComponentSchema = z.object({
+    id: z.string().uuid(),
+    name: z.string().min(1),
+    type: z.enum(['ALLOWANCE', 'DEDUCTION']),
+    calculation_method: z.enum(['FIXED', 'TRANSACTION', 'ATTENDANCE']),
+    amount: z.number().min(0).default(0),
+    source_key: z.string().optional(),
+    updated_at: z.string()
+});
+export type PayrollComponent = z.infer<typeof PayrollComponentSchema>;
+
+export const PayrollLineSchema = z.object({
+    id: z.string().uuid(),
+    employee_id: z.string().uuid(),
+    component_id: z.string().uuid(),
+    amount_override: z.number().min(0).optional(),
+    active: z.boolean().default(true),
+    updated_at: z.string()
+});
+export type PayrollLine = z.infer<typeof PayrollLineSchema>;
+
+export const AdjustmentSchema = z.object({
+    id: z.string().uuid(),
+    date: z.string(),
+    employee_id: z.string().uuid(),
+    type: z.enum(['ALLOWANCE', 'DEDUCTION']),
+    name: z.string(),
+    calc: z.enum(['FIXED', 'PER_DAY', 'PER_QUANTITY']),
+    unit_price: z.number().min(0).default(0),
+    quantity: z.number().min(0).default(0),
+    sync_status: z.enum(['PENDING', 'SYNCED', 'FAILED']).default('PENDING'),
+    created_by: z.string()
+});
+export type Adjustment = z.infer<typeof AdjustmentSchema>;
 
 // --- SYNC ---
 

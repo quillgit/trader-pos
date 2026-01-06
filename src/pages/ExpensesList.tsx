@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { stores } from '@/lib/storage';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, exportXLSX } from '@/lib/utils';
 import type { Expense } from '@/types';
 import { Link } from 'react-router-dom';
 import { Plus, Search } from 'lucide-react';
@@ -87,6 +87,23 @@ export default function ExpensesList() {
                     value={endDate}
                     onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }}
                 />
+                <button
+                    onClick={() => {
+                        const headers = ['ID','Date','Category','Description','Amount','Currency'];
+                        const rows = filteredExpenses.map(t => ({
+                            ID: t.id,
+                            Date: new Date(t.date).toLocaleString(),
+                            Category: t.category,
+                            Description: t.description,
+                            Amount: t.amount,
+                            Currency: t.currency
+                        }));
+                        exportXLSX(`expenses_${startDate || 'all'}_${endDate || 'all'}`, 'Expenses', headers, rows);
+                    }}
+                    className="px-3 py-2 bg-green-600 text-white rounded-md text-sm"
+                >
+                    Export
+                </button>
             </div>
 
             {/* Table */}

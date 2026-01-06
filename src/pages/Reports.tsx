@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { stores } from '@/lib/storage';
 import type { Transaction, CashSession, Expense } from '@/types';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, exportXLSX } from '@/lib/utils';
 import { TrendingUp, TrendingDown, Wallet, FileBarChart, CreditCard, Banknote } from 'lucide-react';
 
 // Helper for date formatting
@@ -338,6 +338,46 @@ export default function Reports() {
                                 Transfer
                             </button>
                         </div>
+                        <div className="flex items-center">
+                            <button
+                                onClick={() => {
+                                    const headers = ['Type','ID','Date','Partner','Items','Amount','PaymentMethod'];
+                                    const rows = [
+                                        ...dailyData.inflows.map(t => ({
+                                            Type: 'SALE',
+                                            ID: t.id,
+                                            Date: new Date(t.date).toLocaleString(),
+                                            Partner: t.partner_name || 'Cash Customer',
+                                            Items: t.items.map(i => `${i.product_name} x${i.quantity} @${i.price}`).join('; '),
+                                            Amount: t.total_amount,
+                                            PaymentMethod: t.payment_method
+                                        })),
+                                        ...dailyData.outflows.map(t => ({
+                                            Type: 'PURCHASE',
+                                            ID: t.id,
+                                            Date: new Date(t.date).toLocaleString(),
+                                            Partner: t.partner_name || 'Supplier',
+                                            Items: t.items.map(i => `${i.product_name} x${i.quantity} @${i.price}`).join('; '),
+                                            Amount: t.total_amount,
+                                            PaymentMethod: t.payment_method
+                                        })),
+                                        ...dailyData.expenses.map(e => ({
+                                            Type: 'EXPENSE',
+                                            ID: e.id,
+                                            Date: new Date(e.date).toLocaleString(),
+                                            Partner: e.category,
+                                            Items: e.description,
+                                            Amount: e.amount,
+                                            PaymentMethod: 'CASH'
+                                        }))
+                                    ];
+                                    exportXLSX(`daily_${dailyDate}`, 'Daily', headers, rows);
+                                }}
+                                className="px-3 py-2 bg-green-600 text-white rounded-md text-sm"
+                            >
+                                Export
+                            </button>
+                        </div>
                     </div>
 
                     {/* Summary Cards */}
@@ -529,6 +569,39 @@ export default function Reports() {
                                 className="border rounded-lg p-2 text-sm"
                             />
                         </div>
+                        <button
+                            onClick={() => {
+                                const headers = ['Type','ID','Date','Partner','Items','Amount','Paid','Change','PaymentMethod'];
+                                const rows = [
+                                    ...rangeData.sales.map(t => ({
+                                        Type: 'SALE',
+                                        ID: t.id,
+                                        Date: new Date(t.date).toLocaleString(),
+                                        Partner: t.partner_name || 'Cash Customer',
+                                        Items: t.items.map(i => `${i.product_name} x${i.quantity} @${i.price}`).join('; '),
+                                        Amount: t.total_amount,
+                                        Paid: t.paid_amount ?? 0,
+                                        Change: t.change_amount ?? 0,
+                                        PaymentMethod: t.payment_method
+                                    })),
+                                    ...rangeData.purchases.map(t => ({
+                                        Type: 'PURCHASE',
+                                        ID: t.id,
+                                        Date: new Date(t.date).toLocaleString(),
+                                        Partner: t.partner_name || 'Supplier',
+                                        Items: t.items.map(i => `${i.product_name} x${i.quantity} @${i.price}`).join('; '),
+                                        Amount: t.total_amount,
+                                        Paid: t.paid_amount ?? 0,
+                                        Change: t.change_amount ?? 0,
+                                        PaymentMethod: t.payment_method
+                                    })),
+                                ];
+                                exportXLSX(`sales_purchases_${rangeStart}_${rangeEnd}`, 'SalesPurchases', headers, rows);
+                            }}
+                            className="ml-auto px-3 py-2 bg-green-600 text-white rounded-md text-sm"
+                        >
+                            Export
+                        </button>
                     </div>
 
                     {/* Summary Cards */}
@@ -626,6 +699,37 @@ export default function Reports() {
             {/* DEBTS REPORT CONTENT */}
             {activeTab === 'debts' && (
                 <div className="space-y-6">
+                    <div className="flex justify-end">
+                        <button
+                            onClick={() => {
+                                const headers = ['Type','ID','Date','Partner','Amount','Paid','Outstanding'];
+                                const rows = [
+                                    ...debtData.receivables.map(t => ({
+                                        Type: 'RECEIVABLE',
+                                        ID: t.id,
+                                        Date: new Date(t.date).toLocaleString(),
+                                        Partner: t.partner_name || 'Customer',
+                                        Amount: t.total_amount,
+                                        Paid: t.paid_amount ?? 0,
+                                        Outstanding: (t.total_amount - (t.paid_amount ?? 0))
+                                    })),
+                                    ...debtData.payables.map(t => ({
+                                        Type: 'PAYABLE',
+                                        ID: t.id,
+                                        Date: new Date(t.date).toLocaleString(),
+                                        Partner: t.partner_name || 'Supplier',
+                                        Amount: t.total_amount,
+                                        Paid: t.paid_amount ?? 0,
+                                        Outstanding: (t.total_amount - (t.paid_amount ?? 0))
+                                    }))
+                                ];
+                                exportXLSX(`debts_${rangeStart}_${rangeEnd}`, 'Debts', headers, rows);
+                            }}
+                            className="px-3 py-2 bg-green-600 text-white rounded-md text-sm"
+                        >
+                            Export
+                        </button>
+                    </div>
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
