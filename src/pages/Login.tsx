@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { stores } from '@/lib/storage';
 import type { Employee } from '@/types';
-import { Lock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Login() {
@@ -60,11 +59,13 @@ export default function Login() {
         <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
             <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-sm">
                 <div className="flex justify-center mb-6">
-                    <div className="bg-purple-100 p-3 rounded-full text-purple-600">
-                        <Lock className="w-8 h-8" />
-                    </div>
+                    <img 
+                        src="/logo-traderpos.png" 
+                        alt="TraderPOS Logo" 
+                        className="w-24 h-24 object-contain"
+                    />
                 </div>
-                <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">Commodity Trader</h1>
+                <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">TraderPOS</h1>
 
                 <form onSubmit={handleLogin} className="space-y-4">
                     <div>
