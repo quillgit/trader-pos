@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Save, CheckCircle, XCircle, Building2, Server, LayoutTemplate, Loader2 } from 'lucide-react';
+import { LicenseService, type LicenseInfo } from '@/services/license';
+import { Save, CheckCircle, XCircle, Building2, Server, LayoutTemplate, Loader2, Key } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { SyncEngine } from '@/services/sync';
 import { SyncServiceSQL } from '@/services/SyncServiceSQL';
 import { api } from '@/services/api';
+import { GoogleProvision } from '@/services/googleProvision';
 
 
 export default function Settings() {
@@ -12,8 +14,15 @@ export default function Settings() {
     const [companyName, setCompanyName] = useState('');
     const [companyAddress, setCompanyAddress] = useState('');
     const [companyPhone, setCompanyPhone] = useState('');
+    const [googleClientId, setGoogleClientId] = useState('');
+    const [isManagedClientId, setIsManagedClientId] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     
+    // License State
+    const [licenseKey, setLicenseKey] = useState('');
+    const [licenseInfo, setLicenseInfo] = useState<LicenseInfo>({ key: '', status: 'none', plan: 'standard' });
+    const [isVerifyingLicense, setIsVerifyingLicense] = useState(false);
+
     const [testStatus, setTestStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
     const [message, setMessage] = useState('');
 
@@ -32,7 +41,47 @@ export default function Settings() {
 
         const storedPhone = localStorage.getItem('COMPANY_PHONE');
         if (storedPhone) setCompanyPhone(storedPhone);
+        
+        // Load License
+        const savedLicense = LicenseService.getLicense();
+        setLicenseInfo(savedLicense);
+        if (savedLicense.status === 'active') {
+            setLicenseKey(savedLicense.key);
+        }
+
+        // SaaS Mode: Check environment variable first
+        const envClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+        if (envClientId) {
+            setGoogleClientId(envClientId);
+            setIsManagedClientId(true);
+        } else {
+            const gid = localStorage.getItem('GOOGLE_OAUTH_CLIENT_ID');
+            if (gid) setGoogleClientId(gid);
+        }
     }, []);
+
+    const handleVerifyLicense = async () => {
+        setIsVerifyingLicense(true);
+        try {
+            const info = await LicenseService.verifyLicense(licenseKey);
+            setLicenseInfo(info);
+            toast.success('License verified successfully!');
+        } catch (e: any) {
+            toast.error(e.message);
+            setLicenseInfo({ ...licenseInfo, status: 'invalid' });
+        } finally {
+            setIsVerifyingLicense(false);
+        }
+    };
+
+    const handleRemoveLicense = () => {
+        if (window.confirm('Are you sure you want to remove the license?')) {
+            LicenseService.removeLicense();
+            setLicenseInfo({ key: '', status: 'none', plan: 'standard' });
+            setLicenseKey('');
+        }
+    };
+
 
     const handleSave = async () => {
         setIsLoading(true);
@@ -123,6 +172,67 @@ export default function Settings() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* License Section - New */}
+                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-6 md:col-span-2">
+                    <div className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-2">
+                        <Key className="w-5 h-5 text-indigo-500" />
+                        <h3>Product License</h3>
+                    </div>
+                    
+                    <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
+                        <div className="flex-1 w-full">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">License Key</label>
+                            <div className="relative">
+                                <input
+                                    className={`w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border font-mono ${licenseInfo.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' : ''}`}
+                                    placeholder="CT-XXXX-XXXX-XXXX"
+                                    value={licenseKey}
+                                    onChange={e => setLicenseKey(e.target.value)}
+                                    readOnly={licenseInfo.status === 'active'}
+                                />
+                                {licenseInfo.status === 'active' && (
+                                    <CheckCircle className="absolute right-3 top-2.5 w-5 h-5 text-green-500" />
+                                )}
+                            </div>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                            {licenseInfo.status !== 'active' ? (
+                                <button
+                                    onClick={handleVerifyLicense}
+                                    disabled={isVerifyingLicense || !licenseKey}
+                                    className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm flex items-center gap-2"
+                                >
+                                    {isVerifyingLicense && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    Verify License
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleRemoveLicense}
+                                    className="px-4 py-2.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium text-sm"
+                                >
+                                    Remove License
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {licenseInfo.status === 'active' && (
+                        <div className="bg-green-50 border border-green-100 rounded-lg p-4 flex flex-col sm:flex-row gap-4 sm:items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-green-800">License Active</p>
+                                <p className="text-xs text-green-600 mt-1">Plan: <span className="uppercase font-bold">{licenseInfo.plan}</span></p>
+                            </div>
+                            {licenseInfo.expiry && (
+                                <div className="text-right">
+                                    <p className="text-xs text-green-600">Valid until</p>
+                                    <p className="text-sm font-medium text-green-800">{new Date(licenseInfo.expiry).toLocaleDateString()}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
                 {/* Company Information Section */}
                 <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-6">
                     <div className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-2">
@@ -183,6 +293,42 @@ export default function Settings() {
                                 Deploy your Google Apps Script as a Web App (Exec as Me, Access: Anyone) and paste the URL here.
                             </p>
                         </div>
+                        
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="block text-sm font-medium text-gray-700">Google OAuth Client ID</label>
+                                {isManagedClientId && (
+                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">
+                                        Managed by Platform
+                                    </span>
+                                )}
+                            </div>
+                            <input
+                                className={`w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-xs font-mono p-2.5 border ${isManagedClientId ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                                placeholder="xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com"
+                                value={googleClientId}
+                                onChange={e => !isManagedClientId && setGoogleClientId(e.target.value)}
+                                readOnly={isManagedClientId}
+                            />
+                            {!isManagedClientId && (
+                                <div className="text-xs text-gray-500 mt-2 leading-relaxed">
+                                    <p>Used for one-click provisioning of Google Sheets and Apps Script.</p>
+                                    <details className="mt-1 cursor-pointer">
+                                        <summary className="text-blue-600 hover:text-blue-800">How to get Client ID?</summary>
+                                        <ol className="list-decimal ml-4 mt-2 space-y-1">
+                                            <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google Cloud Console</a>.</li>
+                                            <li>Create a new project.</li>
+                                            <li>Enable <strong>Google Drive API</strong> and <strong>Google Apps Script API</strong>.</li>
+                                            <li>Configure <strong>OAuth Consent Screen</strong> (External, enter email).</li>
+                                            <li>Go to <strong>Credentials</strong> &gt; <strong>Create Credentials</strong> &gt; <strong>OAuth Client ID</strong>.</li>
+                                            <li>Application type: <strong>Web application</strong>.</li>
+                                            <li>Add Authorized Origin: <code>{window.location.origin}</code></li>
+                                            <li>Copy the <strong>Client ID</strong> and paste it here.</li>
+                                        </ol>
+                                    </details>
+                                </div>
+                            )}
+                        </div>
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">SQL Backend URL (MariaDB)</label>
@@ -203,6 +349,61 @@ export default function Settings() {
                                 className="px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 text-sm font-medium transition-colors"
                             >
                                 Test Connection
+                            </button>
+
+                            <button
+                                onClick={async () => {
+                                    if (!apiUrl) {
+                                        toast.error('Please enter the Google Apps Script URL first');
+                                        return;
+                                    }
+                                    const toastId = toast.loading('Setting up Google Sheets...');
+                                    try {
+                                        localStorage.setItem('OFFLINE_TRADER_API_URL', apiUrl);
+                                        await api.bootstrap();
+                                        await api.pushSettings({
+                                            'COMPANY_NAME': companyName || 'My Company',
+                                            'COMPANY_ADDRESS': companyAddress || '',
+                                            'COMPANY_PHONE': companyPhone || ''
+                                        });
+                                        await SyncEngine.syncAllDown();
+                                        toast.success('Google Sheets setup complete!', { id: toastId });
+                                    } catch (e: any) {
+                                        toast.error('Setup failed: ' + e.message, { id: toastId });
+                                    }
+                                }}
+                                className="px-4 py-2 bg-green-50 border border-green-300 rounded-lg text-green-700 hover:bg-green-100 text-sm font-medium transition-colors"
+                            >
+                                One-Click Setup Google Sheets
+                            </button>
+                            
+                            <button
+                                onClick={async () => {
+                                    if (!googleClientId) {
+                                        toast.error('Please enter Google OAuth Client ID');
+                                        return;
+                                    }
+                                    const toastId = toast.loading('Provisioning Apps Script...');
+                                    try {
+                                        localStorage.setItem('GOOGLE_OAUTH_CLIENT_ID', googleClientId);
+                                        const res = await GoogleProvision.provision(googleClientId, companyName || 'Commodity Trader');
+                                        localStorage.setItem('OFFLINE_TRADER_API_URL', res.url);
+                                        setApiUrl(res.url);
+                                        await api.bootstrap();
+                                        await api.pushSettings({
+                                            'COMPANY_NAME': companyName || 'My Company',
+                                            'COMPANY_ADDRESS': companyAddress || '',
+                                            'COMPANY_PHONE': companyPhone || ''
+                                        });
+                                        await SyncEngine.syncAllDown();
+                                        toast.success('Apps Script provisioned!', { id: toastId });
+                                    } catch (e: any) {
+                                        toast.error('Provisioning failed: ' + e.message, { id: toastId });
+                                    }
+                                }}
+                                className="px-4 py-2 bg-purple-50 border border-purple-300 rounded-lg text-purple-700 hover:bg-purple-100 text-sm font-medium transition-colors"
+                            >
+                                One-Click Create Apps Script & Web App
                             </button>
 
                             <button

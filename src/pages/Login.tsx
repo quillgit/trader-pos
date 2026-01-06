@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { stores } from '@/lib/storage';
 import type { Employee } from '@/types';
 import { Lock } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Login() {
     const navigate = useNavigate();
+    const { login } = useAuth();
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [selectedEmployee, setSelectedEmployee] = useState('');
     const [pin, setPin] = useState('');
@@ -38,7 +40,7 @@ export default function Login() {
         }
 
         if (emp.pin === pin) {
-            localStorage.setItem('commodity_user', JSON.stringify(emp));
+            login(emp);
             navigate('/');
         } else {
             setError('Invalid PIN');
@@ -48,8 +50,8 @@ export default function Login() {
     // Temporary backdoor for initial setup if no employees exist
     const handleDevLogin = () => {
         if (employees.length === 0) {
-            const devUser = { id: 'dev', name: 'Developer', pin: '0000', role: 'ADMIN' };
-            localStorage.setItem('commodity_user', JSON.stringify(devUser));
+            const devUser = { id: 'dev', name: 'Developer', pin: '0000', role: 'ADMIN' } as Employee;
+            login(devUser);
             navigate('/');
         }
     }

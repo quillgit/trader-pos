@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { stores } from '@/lib/storage';
 import { SyncEngine } from '@/services/sync';
 import type { Partner } from '@/types';
 import { PartnerSchema } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Users, ShoppingBag, Truck } from 'lucide-react';
+import { Plus, Users, ShoppingBag, Truck, Pencil } from 'lucide-react';
 
 export default function PartnerMaster() {
     const [partners, setPartners] = useState<Partner[]>([]);
     const [isFormOpen, setFormOpen] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
 
     // Form State
     const [formData, setFormData] = useState<Partial<Partner>>({
@@ -38,33 +40,37 @@ export default function PartnerMaster() {
         e.preventDefault();
 
         if (!formData.is_supplier && !formData.is_customer) {
-            alert("Please select at least one role (Supplier or Customer)");
+            toast.error("Please select at least one role (Supplier or Customer)");
             return;
         }
 
-        const newPartner: Partner = {
-            id: uuidv4(),
+        const base: Partner = {
+            id: editingId ? editingId : uuidv4(),
             name: formData.name!,
-            type: undefined, // Deprecated
+            type: undefined,
             is_supplier: formData.is_supplier || false,
             is_customer: formData.is_customer || false,
             sub_type: formData.sub_type as any,
-            phone: formData.phone || '',
-            address: formData.address || '',
+            phone: formData.phone ? String(formData.phone) : undefined,
+            address: formData.address ? String(formData.address) : undefined,
             updated_at: new Date().toISOString()
         };
 
-        const result = PartnerSchema.safeParse(newPartner);
+        console.log('Partner submission base:', base);
+
+        const result = PartnerSchema.safeParse(base);
         if (!result.success) {
-            alert('Error: ' + result.error.message);
+            toast.error('Error: ' + result.error.message);
             return;
         }
 
-        await stores.masters.partners.setItem(newPartner.id, newPartner);
-        await SyncEngine.addToQueue('partner', 'create', newPartner);
+        await stores.masters.partners.setItem(base.id, base);
+        await SyncEngine.addToQueue('partner', editingId ? 'update' : 'create', base);
+        toast.success(editingId ? 'Partner updated' : 'Partner created');
 
         setFormData({ name: '', is_supplier: false, is_customer: false, sub_type: 'PERSONAL', phone: '', address: '' });
         setFormOpen(false);
+        setEditingId(null);
         fetchPartners();
     };
 
@@ -109,7 +115,11 @@ export default function PartnerMaster() {
             <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold">Partners</h2>
                 <button
-                    onClick={() => setFormOpen(!isFormOpen)}
+                    onClick={() => {
+                        setFormOpen(!isFormOpen);
+                        setEditingId(null);
+                        setFormData({ name: '', is_supplier: false, is_customer: false, sub_type: 'PERSONAL', phone: '', address: '' });
+                    }}
                     className="bg-purple-600 text-white px-3 py-2 rounded-md flex items-center gap-2 text-sm"
                 >
                     <Plus className="w-4 h-4" /> New
@@ -172,7 +182,7 @@ export default function PartnerMaster() {
                         </div>
                         <div className="flex justify-end gap-2 mt-4">
                             <button type="button" onClick={() => setFormOpen(false)} className="px-3 py-1 border rounded text-sm">Cancel</button>
-                            <button type="submit" className="px-3 py-1 bg-green-600 text-white rounded text-sm">Save</button>
+                            <button type="submit" className="px-3 py-1 bg-green-600 text-white rounded text-sm">{editingId ? 'Update' : 'Save'}</button>
                         </div>
                     </form>
                 </div>
@@ -200,7 +210,26 @@ export default function PartnerMaster() {
                                         <div className="text-xs text-gray-500">{p.sub_type}</div>
                                     </div>
                                 </div>
-                                <div className="text-sm text-gray-600">{p.phone}</div>
+                                <div className="flex items-center gap-3">
+                                    <div className="text-sm text-gray-600">{p.phone}</div>
+                                    <button
+                                        className="px-2 py-1 text-xs border rounded flex items-center gap-1 hover:bg-gray-50"
+                                        onClick={() => {
+                                            setFormOpen(true);
+                                            setEditingId(p.id);
+                                            setFormData({
+                                                name: p.name,
+                                                is_supplier: p.is_supplier,
+                                                is_customer: p.is_customer,
+                                                sub_type: p.sub_type,
+                                                phone: p.phone,
+                                                address: p.address
+                                            });
+                                        }}
+                                    >
+                                        <Pencil className="w-3 h-3" /> Edit
+                                    </button>
+                                </div>
                             </li>
                         ))}
                     </ul>

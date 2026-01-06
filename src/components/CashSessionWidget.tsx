@@ -1,24 +1,31 @@
 import { useState } from 'react';
 import { stores } from '@/lib/storage';
 import { CashSessionSchema } from '@/types';
-import type { CashSession } from '@/types';
+import type { CashSession, Transaction } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+import { formatCurrency } from '@/lib/utils';
 import { Lock, Unlock, Wallet } from 'lucide-react';
 import { SyncEngine } from '@/services/sync';
 import { useCashSession } from '@/hooks/use-cash-session';
+import { useAuth } from '@/contexts/AuthContext';
+import { MoneyInput } from '@/components/ui/MoneyInput';
+import toast from 'react-hot-toast';
 
 export default function CashSessionWidget() {
-    const { session: currentSession, balance, refreshSession, loading } = useCashSession();
-    const [amountInput, setAmountInput] = useState('');
+    const { user } = useAuth();
+    const { session: currentSession, balance, refreshSession, loading, isExpired } = useCashSession();
+    const [amountInput, setAmountInput] = useState<number>(0);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [topupAmount, setTopupAmount] = useState<number>(0);
+    const [isTopupProcessing, setIsTopupProcessing] = useState(false);
 
     const handleOpenSession = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsProcessing(true);
         try {
-            const startAmount = parseFloat(amountInput);
+            const startAmount = amountInput;
             if (isNaN(startAmount)) {
-                alert('Invalid amount');
+                toast.error('Invalid amount');
                 return;
             }
 
@@ -27,7 +34,7 @@ export default function CashSessionWidget() {
                 date: new Date().toISOString(),
                 start_amount: startAmount,
                 status: 'OPEN',
-                created_by: 'CURRENT_USER', // Replace with auth later
+                created_by: user?.id || 'OFFLINE_USER',
                 transactions_count: 0,
                 expenses_count: 0
             };
@@ -39,9 +46,9 @@ export default function CashSessionWidget() {
             await SyncEngine.addToQueue('session', 'create', newSession);
 
             await refreshSession();
-            setAmountInput('');
+            setAmountInput(0);
         } catch (error: any) {
-            alert('Error starting session: ' + error.message);
+            toast.error('Error starting session: ' + error.message);
         } finally {
             setIsProcessing(false);
         }
@@ -53,9 +60,9 @@ export default function CashSessionWidget() {
 
         setIsProcessing(true);
         try {
-            const endAmount = parseFloat(amountInput);
+            const endAmount = amountInput;
             if (isNaN(endAmount)) {
-                alert('Invalid amount');
+                toast.error('Invalid amount');
                 return;
             }
 
@@ -63,18 +70,59 @@ export default function CashSessionWidget() {
                 ...currentSession,
                 end_amount: endAmount,
                 status: 'CLOSED',
-                closed_by: 'CURRENT_USER' // Replace with auth
+                closed_by: user?.id || 'OFFLINE_USER'
             };
 
             await stores.transactions.sessions.setItem(updatedSession.id, updatedSession);
             await SyncEngine.addToQueue('session', 'close', updatedSession);
 
             await refreshSession();
-            setAmountInput('');
+            setAmountInput(0);
         } catch (error: any) {
-            alert('Error closing session: ' + error.message);
+            toast.error('Error closing session: ' + error.message);
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    const handleTopup = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!currentSession) return;
+        if (isExpired) {
+            toast.error('Session expired. Please close previous session first.');
+            return;
+        }
+        const amt = topupAmount;
+        if (isNaN(amt) || amt <= 0) {
+            toast.error('Invalid topup amount');
+            return;
+        }
+        setIsTopupProcessing(true);
+        try {
+            const trx: Transaction = {
+                id: uuidv4(),
+                date: new Date().toISOString(),
+                type: 'PAYMENT_IN',
+                items: [],
+                total_amount: amt,
+                paid_amount: amt,
+                change_amount: 0,
+                currency: 'IDR',
+                partner_name: 'Topup',
+                created_by: user?.id || 'OFFLINE_USER',
+                sync_status: 'PENDING',
+                cash_session_id: currentSession.id,
+                payment_method: 'CASH'
+            };
+            await stores.transactions.sales.setItem(trx.id, trx);
+            await SyncEngine.addToQueue('transaction', 'create', trx);
+            await refreshSession();
+            setTopupAmount(0);
+            toast.success('Cash topped up');
+        } catch (error: any) {
+            toast.error('Topup failed: ' + error.message);
+        } finally {
+            setIsTopupProcessing(false);
         }
     };
 
@@ -91,15 +139,15 @@ export default function CashSessionWidget() {
                     You must open a cash session before processing transactions.
                 </p>
                 <form onSubmit={handleOpenSession} className="flex gap-2">
-                    <input
-                        type="number"
-                        placeholder="Opening Balance"
-                        className="border rounded px-3 py-1 text-sm flex-1"
-                        value={amountInput}
-                        onChange={e => setAmountInput(e.target.value)}
-                        required
-                        min="0"
-                    />
+                    <div className="flex-1">
+                        <MoneyInput
+                            value={amountInput}
+                            onChange={setAmountInput}
+                            placeholder="0"
+                            className="text-sm w-full font-medium"
+                            required
+                        />
+                    </div>
                     <button
                         disabled={isProcessing}
                         className="bg-red-600 text-white px-4 py-1 rounded text-sm hover:bg-red-700 disabled:opacity-50"
@@ -107,6 +155,54 @@ export default function CashSessionWidget() {
                         {isProcessing ? 'Opening...' : 'Open Session'}
                     </button>
                 </form>
+            </div>
+        );
+    }
+
+    if (isExpired) {
+        return (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4 shadow-sm animate-pulse">
+                <div className="flex items-start gap-3">
+                    <div className="p-2 bg-orange-100 rounded-full text-orange-600">
+                        <Lock className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="font-bold text-orange-800 text-lg mb-1">Session Expired</h3>
+                        <p className="text-sm text-orange-700 mb-3">
+                            The active session is from <strong>{new Date(currentSession.date).toLocaleDateString()}</strong>. 
+                            You must close it before starting today's transactions.
+                        </p>
+                        
+                        <div className="flex items-center gap-4 bg-white/50 p-2 rounded-lg mb-3">
+                             <div className="text-xs text-orange-800 uppercase font-bold">Calculated Cash</div>
+                             <div className="text-xl font-bold text-orange-900">{formatCurrency(balance)}</div>
+                        </div>
+
+                        <form onSubmit={handleCloseSession} className="flex gap-2 items-end w-full">
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold text-orange-800 mb-1">Confirm Closing Cash</label>
+                                <MoneyInput
+                                    value={amountInput}
+                                    onChange={setAmountInput}
+                                    className="border-orange-300 font-bold"
+                                    required
+                                />
+                            </div>
+                            <button
+                                disabled={isProcessing}
+                                className="bg-orange-600 text-white px-6 py-2 rounded font-bold hover:bg-orange-700 disabled:opacity-50 h-[38px]"
+                            >
+                                {isProcessing ? 'Closing...' : 'Close Session Now'}
+                            </button>
+                        </form>
+                        <div 
+                            className="text-xs text-orange-600 mt-2 cursor-pointer hover:underline text-right" 
+                            onClick={() => setAmountInput(balance)}
+                        >
+                            Use calculated: {formatCurrency(balance)}
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }
@@ -121,7 +217,7 @@ export default function CashSessionWidget() {
                     </div>
                     <div className="text-xs text-green-600">
                         Started: {new Date(currentSession.date).toLocaleTimeString()} <br />
-                        Opening: <span className="font-bold">{currentSession.start_amount.toLocaleString()}</span>
+                        Opening: <span className="font-bold">{formatCurrency(currentSession.start_amount)}</span>
                     </div>
                 </div>
 
@@ -129,35 +225,55 @@ export default function CashSessionWidget() {
                     <div className="text-xs text-green-600 font-bold uppercase tracking-wide">Current Cash</div>
                     <div className="text-2xl font-bold text-green-800 flex items-center gap-1">
                         <Wallet className="w-5 h-5 text-green-600" />
-                        {balance.toLocaleString()}
+                        {formatCurrency(balance)}
                     </div>
                 </div>
 
                 <form onSubmit={handleCloseSession} className="flex flex-col gap-2 items-end">
                     <div className="flex gap-2 items-center">
-                        <div className="text-right">
-                            <label className="block text-[10px] text-green-700 font-bold uppercase">End Amount</label>
-                            <input
-                                type="number"
-                                placeholder="Expected..."
-                                className="border rounded px-2 py-1 text-xs w-24 text-right font-bold"
+                        <div className="text-right w-32">
+                            <label className="block text-[10px] text-green-700 font-bold uppercase mb-1">End Amount</label>
+                            <MoneyInput
                                 value={amountInput}
-                                onChange={e => setAmountInput(e.target.value)}
+                                onChange={setAmountInput}
+                                placeholder="Expected..."
+                                className="text-xs font-bold py-1"
                                 required
-                                min="0"
                             />
                         </div>
                         <button
                             disabled={isProcessing}
-                            className="bg-green-600 text-white px-3 py-3 rounded text-xs hover:bg-green-700 disabled:opacity-50 h-full mt-3"
+                            className="bg-green-600 text-white px-3 py-3 rounded text-xs hover:bg-green-700 disabled:opacity-50 h-full mt-4"
                         >
                             {isProcessing ? 'Closing...' : 'Close'}
                         </button>
                     </div>
-                    <div className="text-[10px] text-green-600 cursor-pointer hover:underline" onClick={() => setAmountInput(balance.toString())}>
-                        Use calculated: {balance.toLocaleString()}
+                    <div className="text-[10px] text-green-600 cursor-pointer hover:underline" onClick={() => setAmountInput(balance)}>
+                        Use calculated: {formatCurrency(balance)}
                     </div>
                 </form>
+            </div>
+            <div className="mt-4 bg-white/60 rounded-lg p-3 border border-green-100">
+                <form onSubmit={handleTopup} className="flex items-end gap-2">
+                    <div className="flex-1">
+                        <label className="block text-[10px] text-green-700 font-bold uppercase mb-1">Topup Cash</label>
+                        <MoneyInput
+                            value={topupAmount}
+                            onChange={setTopupAmount}
+                            className="text-sm font-bold"
+                            placeholder="0"
+                        />
+                    </div>
+                    <button
+                        disabled={isTopupProcessing}
+                        className="bg-green-600 text-white px-4 py-2 rounded text-xs hover:bg-green-700 disabled:opacity-50"
+                    >
+                        {isTopupProcessing ? 'Processing...' : 'Top Up'}
+                    </button>
+                </form>
+                <div className="text-[10px] text-green-600 mt-1">
+                    Adds directly to session cash balance.
+                </div>
             </div>
         </div>
     );

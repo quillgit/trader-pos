@@ -6,6 +6,7 @@ export function useCashSession() {
     const [session, setSession] = useState<CashSession | null>(null);
     const [balance, setBalance] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [isExpired, setIsExpired] = useState(false);
 
     const refreshSession = useCallback(async () => {
         setLoading(true);
@@ -23,6 +24,14 @@ export function useCashSession() {
             setSession(active);
 
             if (active) {
+                // Check if expired (previous day)
+                const sessionDate = new Date(active.date);
+                const today = new Date();
+                const isSameDay = sessionDate.getFullYear() === today.getFullYear() &&
+                                sessionDate.getMonth() === today.getMonth() &&
+                                sessionDate.getDate() === today.getDate();
+                setIsExpired(!isSameDay);
+
                 let currentBalance = active.start_amount;
 
                 // 2. Add Sales & Payment In
@@ -30,7 +39,7 @@ export function useCashSession() {
                 for (const key of saleKeys) {
                     const trx = await stores.transactions.sales.getItem<Transaction>(key);
                     // Only count if linked to this session
-                    if (trx && trx.cash_session_id === active.id) {
+                    if (trx && trx.cash_session_id === active.id && trx.payment_method === 'CASH') {
                          currentBalance += (trx.paid_amount || 0);
                     }
                 }
@@ -40,7 +49,7 @@ export function useCashSession() {
                 for (const key of purchKeys) {
                     const trx = await stores.transactions.purchases.getItem<Transaction>(key);
                     // Only count if linked to this session
-                    if (trx && trx.cash_session_id === active.id) {
+                    if (trx && trx.cash_session_id === active.id && trx.payment_method === 'CASH') {
                         currentBalance -= (trx.paid_amount || 0);
                     }
                 }
@@ -57,6 +66,7 @@ export function useCashSession() {
                 setBalance(currentBalance);
             } else {
                 setBalance(0);
+                setIsExpired(false);
             }
         } catch (error) {
             console.error("Error calculating session balance:", error);
@@ -69,5 +79,5 @@ export function useCashSession() {
         refreshSession();
     }, [refreshSession]);
 
-    return { session, balance, loading, refreshSession };
+    return { session, balance, loading, refreshSession, isExpired };
 }

@@ -1,24 +1,35 @@
 import { useState, useEffect } from 'react';
 import { stores } from '@/lib/storage';
 import { SyncEngine } from '@/services/sync';
-import type { Product, Partner, Transaction, TransactionItem } from '@/types';
+import type { Transaction, TransactionItem } from '@/types';
+import type { Product, Partner } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { Save, ShoppingCart, AlertCircle, Printer, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import Receipt from '@/components/Receipt';
 import { useCashSession } from '@/hooks/use-cash-session';
+import { MoneyInput } from '@/components/ui/MoneyInput';
+import { useAuth } from '@/contexts/AuthContext';
+
+import { formatCurrency } from '@/lib/utils';
 
 export default function SalesForm() {
     const navigate = useNavigate();
-    const { session, loading: sessionLoading } = useCashSession();
+    const { user } = useAuth();
+    const { id: editId } = useParams();
+    const { session, loading: sessionLoading, isExpired } = useCashSession();
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [customers, setCustomers] = useState<Partner[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
 
     const [selectedCustomer, setSelectedCustomer] = useState('');
     const [cart, setCart] = useState<TransactionItem[]>([]);
+
+    // Confirmation
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Printing
     const [showPrintConfirm, setShowPrintConfirm] = useState(false);
@@ -29,6 +40,9 @@ export default function SalesForm() {
     const [paidAmount, setPaidAmount] = useState<number>(0);
     const totalAmount = cart.reduce((sum, item) => sum + item.total, 0);
     const changeAmount = paidAmount > totalAmount ? paidAmount - totalAmount : 0;
+    const [originalTransaction, setOriginalTransaction] = useState<Transaction | null>(null);
+    const [editNotes, setEditNotes] = useState<string>('');
+    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
 
     // Item entry state
     const [currentItem, setCurrentItem] = useState({
@@ -57,6 +71,39 @@ export default function SalesForm() {
         };
         loadMasters();
     }, []);
+
+    useEffect(() => {
+        const loadEdit = async () => {
+            if (!editId) return;
+            const trx = await stores.transactions.sales.getItem<Transaction>(editId);
+            if (!trx) {
+                 toast.error('Transaction not found');
+                 navigate('/sales');
+                 return;
+            }
+
+            // Validation: Can only edit if session is active and matches
+            const currentSessionId = session?.id;
+            const trxSessionId = trx.cash_session_id;
+
+            if (!session || isExpired || currentSessionId !== trxSessionId) {
+                toast.error('Cannot edit transaction from a closed or different session.');
+                navigate('/sales');
+                return;
+            }
+
+            setOriginalTransaction(trx);
+            setDate(new Date(trx.date).toISOString().split('T')[0]);
+            setSelectedCustomer(trx.partner_id || '');
+            setCart(trx.items || []);
+            setPaidAmount(trx.paid_amount || 0);
+            setPaymentMethod((trx as any).payment_method || 'CASH');
+        };
+        // Only run when session is loaded to avoid premature redirect
+        if (!sessionLoading) {
+            loadEdit();
+        }
+    }, [editId, session, isExpired, sessionLoading, navigate]);
 
     const handleProductChange = (productId: string) => {
         const prod = products.find(p => p.id === productId);
@@ -99,38 +146,96 @@ export default function SalesForm() {
             return;
         }
 
-        // Partial Payment Check
-        if (paidAmount < totalAmount) {
-             const confirm = window.confirm(`Payment is less than total. Record ${totalAmount - paidAmount} as credit (Hutang)?`);
-             if (!confirm) return;
+        if (!editId) {
+            if (paidAmount < totalAmount) {
+                const confirm = window.confirm(`Payment is less than total. Record ${formatCurrency(totalAmount - paidAmount)} as credit (Hutang)?`);
+                if (!confirm) return;
+            }
+        } else {
+            if (!session || isExpired || originalTransaction?.cash_session_id !== session?.id) {
+                toast.error('Editing allowed only in current active session');
+                return;
+            }
         }
 
-        const customer = customers.find(s => s.id === selectedCustomer);
+        setShowConfirmModal(true);
+    };
 
-        const trx: Transaction = {
-            id: uuidv4(),
-            date: new Date(date).toISOString(),
-            type: 'SALE',
-            partner_id: selectedCustomer,
-            partner_name: customer?.name,
-            items: cart,
-            total_amount: totalAmount,
-            paid_amount: paidAmount,
-            change_amount: changeAmount,
-            currency: 'IDR',
-            sync_status: 'PENDING',
-            created_by: 'OFFLINE_USER',
-            cash_session_id: session?.id
-        };
+    const handleFinalSubmit = async () => {
+        setIsSubmitting(true);
+        try {
+            const customer = customers.find(s => s.id === selectedCustomer);
 
-        await stores.transactions.sales.setItem(trx.id, trx);
-        await SyncEngine.addToQueue('transaction', 'create', trx);
+            let finalNotes = editNotes;
+            if (editId && originalTransaction) {
+                 const changes = [];
+                 if (paidAmount !== originalTransaction.paid_amount) {
+                     changes.push(`Paid Amount: ${formatCurrency(originalTransaction.paid_amount || 0)} -> ${formatCurrency(paidAmount)}`);
+                 }
+                 if (totalAmount !== originalTransaction.total_amount) {
+                     changes.push(`Total Amount: ${formatCurrency(originalTransaction.total_amount)} -> ${formatCurrency(totalAmount)}`);
+                 }
+                 // Add logic for items changes if needed in future
+                 
+                 if (changes.length > 0) {
+                     const timestamp = new Date().toLocaleString();
+                     const autoLog = `[System ${timestamp}] ${changes.join(', ')}`;
+                     finalNotes = finalNotes ? `${finalNotes}\n${autoLog}` : autoLog;
+                 }
+                 
+                 // Append to existing notes
+                 finalNotes = originalTransaction.notes ? `${originalTransaction.notes}\n${finalNotes}` : finalNotes;
+            }
 
-        toast.success('Sale saved successfully!');
-        
-        // Trigger Print Confirm
-        setPrintingTransaction(trx);
-        setShowPrintConfirm(true);
+            const trx: Transaction = editId && originalTransaction ? {
+                ...originalTransaction,
+                date: new Date(date).toISOString(),
+                partner_id: selectedCustomer,
+                partner_name: customer?.name,
+                items: cart,
+                total_amount: totalAmount,
+                paid_amount: paidAmount,
+                change_amount: changeAmount,
+                sync_status: 'PENDING',
+                payment_method: paymentMethod,
+                notes: finalNotes || ''
+            } : {
+                id: uuidv4(),
+                date: new Date(date).toISOString(),
+                type: 'SALE',
+                partner_id: selectedCustomer,
+                partner_name: customer?.name,
+                items: cart,
+                total_amount: totalAmount,
+                paid_amount: paidAmount,
+                change_amount: changeAmount,
+                currency: 'IDR',
+                sync_status: 'PENDING',
+                created_by: user?.id || 'OFFLINE_USER',
+                cash_session_id: session?.id,
+                payment_method: paymentMethod,
+                notes: editNotes || ''
+            };
+
+            await stores.transactions.sales.setItem(trx.id, trx);
+            await SyncEngine.addToQueue('transaction', editId ? 'update' : 'create', trx);
+
+            toast.success('Sale saved successfully!');
+            
+            setShowConfirmModal(false);
+            
+            if (editId) {
+                navigate('/sales');
+            } else {
+                setPrintingTransaction(trx);
+                setShowPrintConfirm(true);
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error('Failed to save transaction');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const handlePrintConfirm = (shouldPrint: boolean) => {
@@ -154,7 +259,7 @@ export default function SalesForm() {
                 <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                         <ShoppingCart className="w-6 h-6 text-orange-600" />
-                        New Sale (POS)
+                        {editId ? 'Edit Sale' : 'New Sale (POS)'}
                     </h2>
                     <div className="flex items-center gap-2">
                         <input
@@ -180,7 +285,21 @@ export default function SalesForm() {
                     </div>
                 )}
 
-                <div className={`space-y-4 ${!session ? 'opacity-50 pointer-events-none' : ''}`}>
+                {isExpired && !sessionLoading && (
+                     <div className="bg-orange-50 border border-orange-200 text-orange-700 p-4 rounded-lg mb-4 flex justify-between items-center shadow-sm">
+                        <div className="flex items-center gap-2">
+                            <AlertCircle className="w-5 h-5" />
+                            <div>
+                                <strong>Session Expired:</strong> Previous session must be closed first.
+                            </div>
+                        </div>
+                        <button onClick={() => navigate('/')} className="text-sm underline hover:text-orange-900 font-medium">
+                            Go to Dashboard
+                        </button>
+                    </div>
+                )}
+
+                <div className={`space-y-4 ${!session || isExpired ? 'opacity-50 pointer-events-none' : ''}`}>
                     {/* Customer Selection */}
                     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                         <SearchableSelect
@@ -208,7 +327,7 @@ export default function SalesForm() {
                                     options={products.map(p => ({
                                         value: p.id,
                                         label: p.name,
-                                        subLabel: `Stock: 100 | Sell: ${p.price_sell.toLocaleString()}`
+                                        subLabel: `Stock: 100 | Sell: ${formatCurrency(p.price_sell)}`
                                     }))}
                                     value={currentItem.productId}
                                     onChange={handleProductChange}
@@ -227,11 +346,10 @@ export default function SalesForm() {
                             </div>
                             <div className="md:col-span-3">
                                 <label className="block text-xs font-medium text-gray-500 mb-1">Price</label>
-                                <input
-                                    type="number"
-                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                <MoneyInput
                                     value={currentItem.price}
-                                    onChange={e => setCurrentItem({ ...currentItem, price: Number(e.target.value) })}
+                                    onChange={val => setCurrentItem({ ...currentItem, price: val })}
+                                    className="focus:ring-orange-500 focus:border-orange-500"
                                 />
                             </div>
                             <div className="md:col-span-2">
@@ -279,10 +397,10 @@ export default function SalesForm() {
                                 <div className="font-medium text-gray-800 pr-6">{item.product_name}</div>
                                 <div className="flex justify-between items-center mt-2 text-sm text-gray-600">
                                     <div>
-                                        {item.quantity} x {item.price.toLocaleString()}
+                                        {item.quantity} x {formatCurrency(item.price)}
                                     </div>
                                     <div className="font-bold text-gray-900">
-                                        {item.total.toLocaleString()}
+                                        {formatCurrency(item.total)}
                                     </div>
                                 </div>
                             </div>
@@ -290,44 +408,142 @@ export default function SalesForm() {
                     )}
                 </div>
 
-                <div className="p-4 border-t bg-gray-50 space-y-4">
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Subtotal</span>
-                            <span className="font-medium">{totalAmount.toLocaleString()}</span>
+                <div className="p-4 bg-gray-50 border-t space-y-3">
+                    <div className="flex justify-between items-center text-lg font-bold text-gray-800">
+                        <span>Total</span>
+                        <span>{formatCurrency(totalAmount)}</span>
+                    </div>
+                    
+                    <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Amount Paid</label>
+                        <MoneyInput
+                            value={paidAmount}
+                            onChange={setPaidAmount}
+                            onFocus={(e) => e.target.select()}
+                            className="text-lg font-medium focus:ring-orange-500 focus:border-orange-500"
+                        />
+                        <div className="mt-2 text-xs text-gray-600 flex items-center gap-4">
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="radio"
+                                    value="CASH"
+                                    checked={paymentMethod === 'CASH'}
+                                    onChange={() => setPaymentMethod('CASH')}
+                                />
+                                <span>Cash (Session)</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="radio"
+                                    value="TRANSFER"
+                                    checked={paymentMethod === 'TRANSFER'}
+                                    onChange={() => setPaymentMethod('TRANSFER')}
+                                />
+                                <span>Transfer</span>
+                            </div>
                         </div>
-                        <div className="flex justify-between items-center gap-4">
-                            <label className="text-sm font-medium text-gray-600">Paid Amount</label>
-                            <input 
-                                type="number" 
-                                className="w-32 text-right border rounded-lg px-2 py-1 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                                value={paidAmount || ''}
-                                onChange={e => setPaidAmount(Number(e.target.value))}
-                                placeholder="0"
-                            />
-                        </div>
-                        <div className="flex justify-between text-lg font-bold text-gray-800 border-t pt-2 mt-2">
-                            <span>Total</span>
-                            <span>{totalAmount.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Change</span>
-                            <span className={`font-medium ${changeAmount > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                                {changeAmount.toLocaleString()}
-                            </span>
-                        </div>
+                        {editId && (
+                            <div className="mt-3">
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Edit Notes (optional)</label>
+                                <input
+                                    className="w-full border rounded-lg px-3 py-2"
+                                    value={editNotes}
+                                    onChange={e => setEditNotes(e.target.value)}
+                                    placeholder="Reason for correction..."
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-between items-center text-sm text-gray-600">
+                        <span>Change</span>
+                        <span className="font-bold text-gray-800">{formatCurrency(changeAmount)}</span>
                     </div>
 
                     <button
                         className="w-full bg-orange-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-orange-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-transform active:scale-[0.98]"
-                        disabled={cart.length === 0 || !session}
+                        disabled={cart.length === 0 || !session || isExpired}
                         onClick={handleSubmit}
                     >
                         <Save className="w-5 h-5" />
-                        Complete Sale
+                        {editId ? 'Update Sale' : 'Complete Sale'}
                     </button>
                 </div>
             </div>
+
+            {/* Confirmation Modal */}
+            {showConfirmModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                            <h3 className="font-bold text-lg">Confirm Sale</h3>
+                            <button onClick={() => setShowConfirmModal(false)} className="text-gray-500 hover:text-gray-700">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-4 overflow-y-auto space-y-4">
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">Customer</span>
+                                    <span className="font-medium">{customers.find(c => c.id === selectedCustomer)?.name}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">Date</span>
+                                    <span className="font-medium">{new Date(date).toLocaleDateString()}</span>
+                                </div>
+                                <div className="border-t pt-2 mt-2">
+                                    <span className="text-xs font-semibold text-gray-500 uppercase">Items</span>
+                                    <div className="mt-1 space-y-1">
+                                        {cart.map((item, i) => (
+                                            <div key={i} className="flex justify-between text-sm">
+                                                <span>{item.product_name} x {item.quantity}</span>
+                                                <span>{formatCurrency(item.total)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="border-t pt-2 mt-2 space-y-1">
+                                    <div className="flex justify-between font-bold text-lg">
+                                        <span>Total</span>
+                                        <span>{formatCurrency(totalAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-gray-600">
+                                        <span>Paid Amount</span>
+                                        <span>{formatCurrency(paidAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-gray-600">
+                                        <span>Change</span>
+                                        <span>{formatCurrency(changeAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-gray-600">
+                                        <span>Payment Method</span>
+                                        <span className={`text-[10px] px-2 py-1 rounded ${paymentMethod === 'CASH' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            {paymentMethod}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t bg-gray-50 flex gap-3">
+                            <button
+                                onClick={() => setShowConfirmModal(false)}
+                                className="flex-1 py-2 text-gray-700 font-medium hover:bg-gray-100 rounded-lg"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleFinalSubmit}
+                                disabled={isSubmitting}
+                                className="flex-1 py-2 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                            >
+                                {isSubmitting ? 'Saving...' : 'Confirm Sale'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Print Confirmation Modal */}
             {showPrintConfirm && (

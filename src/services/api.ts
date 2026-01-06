@@ -18,6 +18,19 @@ export const api = {
         return response.json();
     },
 
+    async bootstrap() {
+        const baseUrl = getApiUrl();
+        if (!baseUrl) throw new Error('API URL not configured');
+        const response = await fetch(`${baseUrl}?action=bootstrap`, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'bootstrap' })
+        });
+        if (!response.ok) {
+            throw new Error(`Bootstrap failed: ${response.statusText}`);
+        }
+        return response.json();
+    },
+
     async fetchMasters(type: string) {
         const baseUrl = getApiUrl();
         if (!baseUrl) throw new Error('API URL not configured');

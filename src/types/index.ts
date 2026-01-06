@@ -98,6 +98,8 @@ export const TransactionSchema = z.object({
     cash_session_id: z.string().optional(),
     sync_status: z.enum(['PENDING', 'SYNCED', 'FAILED']),
     created_by: z.string(), // Employee ID
+    payment_method: z.enum(['CASH', 'TRANSFER']).default('CASH'),
+    notes: z.string().optional(),
 });
 export type Transaction = z.infer<typeof TransactionSchema>;
 

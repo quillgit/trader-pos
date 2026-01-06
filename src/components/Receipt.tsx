@@ -1,4 +1,5 @@
 import type { Transaction } from '@/types';
+import { formatCurrency } from '@/lib/utils';
 
 interface ReceiptProps {
     transaction: Transaction;
@@ -36,6 +37,10 @@ export default function Receipt({ transaction, company }: ReceiptProps) {
                     <span>{transaction.type === 'SALE' ? 'Customer:' : 'Supplier:'}</span>
                     <span className="font-bold">{transaction.partner_name || 'General'}</span>
                 </div>
+                <div className="flex justify-between">
+                    <span>Payment:</span>
+                    <span className="font-bold">{transaction.payment_method}</span>
+                </div>
             </div>
 
             {/* Items */}
@@ -52,10 +57,10 @@ export default function Receipt({ transaction, company }: ReceiptProps) {
                         <tr key={idx}>
                             <td className="py-1">
                                 <div>{item.product_name}</div>
-                                <div className="text-[10px] text-gray-500">@{item.price.toLocaleString()}</div>
+                                <div className="text-[10px] text-gray-500">@{formatCurrency(item.price, transaction.currency)}</div>
                             </td>
                             <td className="py-1 text-right align-top">{item.quantity}</td>
-                            <td className="py-1 text-right align-top">{item.total.toLocaleString()}</td>
+                            <td className="py-1 text-right align-top">{formatCurrency(item.total, transaction.currency)}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -65,17 +70,17 @@ export default function Receipt({ transaction, company }: ReceiptProps) {
             <div className="border-t border-black border-dashed pt-2 space-y-1">
                 <div className="flex justify-between font-bold text-sm">
                     <span>TOTAL:</span>
-                    <span>{transaction.total_amount.toLocaleString()}</span>
+                    <span>{formatCurrency(transaction.total_amount, transaction.currency)}</span>
                 </div>
                 {transaction.paid_amount > 0 && (
                     <>
                         <div className="flex justify-between">
                             <span>Paid:</span>
-                            <span>{transaction.paid_amount.toLocaleString()}</span>
+                            <span>{formatCurrency(transaction.paid_amount, transaction.currency)}</span>
                         </div>
                         <div className="flex justify-between">
                             <span>Change:</span>
-                            <span>{transaction.change_amount.toLocaleString()}</span>
+                            <span>{formatCurrency(transaction.change_amount, transaction.currency)}</span>
                         </div>
                     </>
                 )}

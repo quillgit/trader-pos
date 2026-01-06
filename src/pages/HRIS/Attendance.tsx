@@ -1,23 +1,19 @@
 import { useState, useEffect } from 'react';
 import { stores } from '@/lib/storage';
 import { SyncEngine } from '@/services/sync';
-import type { Attendance, Employee } from '@/types';
+import type { Attendance } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { Clock, CheckCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AttendancePage() {
     const [attendances, setAttendances] = useState<Attendance[]>([]);
-    const [currentUser, setCurrentUser] = useState<Employee | null>(null);
+    const { user: currentUser } = useAuth();
     const [status, setStatus] = useState<'NONE' | 'CHECKED_IN' | 'CHECKED_OUT'>('NONE');
 
     useEffect(() => {
         const load = async () => {
-            // Get Current User
-            const userStr = localStorage.getItem('commodity_user');
-            if (userStr) {
-                const user = JSON.parse(userStr);
-                setCurrentUser(user);
-
+            if (currentUser) {
                 // Load Logs
                 const keys = await stores.transactions.attendance.keys();
                 const logs: Attendance[] = [];
@@ -27,7 +23,7 @@ export default function AttendancePage() {
                     const log = await stores.transactions.attendance.getItem<Attendance>(k);
                     if (log) {
                         logs.push(log);
-                        if (log.employee_id === user.id) {
+                        if (log.employee_id === currentUser.id) {
                             if (!lastLog || new Date(log.timestamp) > new Date(lastLog.timestamp)) {
                                 lastLog = log;
                             }
@@ -50,7 +46,7 @@ export default function AttendancePage() {
             }
         };
         load();
-    }, []);
+    }, [currentUser]);
 
     const handlePunch = async (type: 'CHECK_IN' | 'CHECK_OUT') => {
         if (!currentUser) return;

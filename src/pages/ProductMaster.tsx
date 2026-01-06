@@ -5,6 +5,9 @@ import type { Product } from '@/types';
 import { ProductSchema } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { Plus, Search } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
+import { MoneyInput } from '@/components/ui/MoneyInput';
+import { toast } from 'react-hot-toast';
 
 
 export default function ProductMaster() {
@@ -50,7 +53,7 @@ export default function ProductMaster() {
         // Validate
         const result = ProductSchema.safeParse(newProduct);
         if (!result.success) {
-            alert('Invalid data: ' + result.error.message);
+            toast.error('Invalid data: ' + result.error.message);
             return;
         }
 
@@ -115,20 +118,18 @@ export default function ProductMaster() {
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium">Buy Price</label>
-                                <input
-                                    type="number"
-                                    className="w-full border rounded px-2 py-1"
+                                <MoneyInput
                                     value={formData.price_buy}
-                                    onChange={e => setFormData({ ...formData, price_buy: Number(e.target.value) })}
+                                    onChange={val => setFormData({ ...formData, price_buy: val })}
+                                    className="px-2 py-1"
                                 />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">Sell Price</label>
-                                <input
-                                    type="number"
-                                    className="w-full border rounded px-2 py-1"
+                                <MoneyInput
                                     value={formData.price_sell}
-                                    onChange={e => setFormData({ ...formData, price_sell: Number(e.target.value) })}
+                                    onChange={val => setFormData({ ...formData, price_sell: val })}
+                                    className="px-2 py-1"
                                 />
                             </div>
                         </div>
@@ -162,8 +163,8 @@ export default function ProductMaster() {
                                     <div className="text-xs text-gray-500">{p.category} • {p.unit}</div>
                                 </div>
                                 <div className="text-right text-sm">
-                                    <div className="text-green-600">Buy: {p.price_buy}</div>
-                                    <div className="text-blue-600">Sell: {p.price_sell}</div>
+                                    <div className="text-green-600">Buy: {formatCurrency(p.price_buy)}</div>
+                                    <div className="text-blue-600">Sell: {formatCurrency(p.price_sell)}</div>
                                 </div>
                             </li>
                         ))}

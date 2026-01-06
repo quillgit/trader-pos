@@ -1,15 +1,27 @@
 import { useState, useEffect } from 'react';
 import { stores } from '@/lib/storage';
-import type { Employee, Attendance } from '@/types';
-import { Calculator } from 'lucide-react';
+import type { Employee, Attendance, Expense } from '@/types';
+import { formatCurrency } from '@/lib/utils';
+import { Calculator, Wallet } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useCashSession } from '@/hooks/use-cash-session';
+import { v4 as uuidv4 } from 'uuid';
+import { SyncEngine } from '@/services/sync';
+import toast from 'react-hot-toast';
 
 export default function PayrollPage() {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [attendances, setAttendances] = useState<Attendance[]>([]);
+    const { user } = useAuth();
+    const { session, balance, isExpired } = useCashSession();
 
     // Filters
     const [frequency, setFrequency] = useState<'DAILY' | 'WEEKLY' | 'MONTHLY'>('MONTHLY');
     const [generatedPayroll, setGeneratedPayroll] = useState<any[]>([]);
+    const [dailyAllowancePerDay, setDailyAllowancePerDay] = useState<number>(0);
+    const [extraAllowances, setExtraAllowances] = useState<Record<string, number>>({});
+    const [bonDeductions, setBonDeductions] = useState<Record<string, number>>({});
+    const [isPaying, setIsPaying] = useState(false);
 
     useEffect(() => {
         const load = async () => {
@@ -36,7 +48,6 @@ export default function PayrollPage() {
         // For production, we need Start/End Date pickers.
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
 
         const payrolls = targetEmployees.map(emp => {
             let daysPresent = 0;
@@ -85,6 +96,11 @@ export default function PayrollPage() {
                 });
             }
 
+            // Daily allowance (premi) based on attendance days
+            const dailyPremi = dailyAllowancePerDay > 0 ? dailyAllowancePerDay * daysPresent : 0;
+            allowances += dailyPremi + (extraAllowances[emp.id] || 0);
+            deductions += bonDeductions[emp.id] || 0;
+
             const netPay = basePay + allowances - deductions;
 
             return {
@@ -99,6 +115,55 @@ export default function PayrollPage() {
         });
 
         setGeneratedPayroll(payrolls);
+    };
+
+    const paySalaries = async () => {
+        if (!user) {
+            toast.error('Please login');
+            return;
+        }
+        if (generatedPayroll.length === 0) {
+            toast.error('Generate payroll first');
+            return;
+        }
+        // For CASH payments, require active cash session and enough balance
+        if (!session || isExpired) {
+            toast.error('No active cash session or session expired');
+            return;
+        }
+        const totalToPay = generatedPayroll.reduce((sum, p) => sum + (p.netPay || 0), 0);
+        if (totalToPay > balance) {
+            toast.error('Insufficient cash in current session');
+            return;
+        }
+
+        setIsPaying(true);
+        const nowIso = new Date().toISOString();
+        try {
+            for (const p of generatedPayroll) {
+                const expense: Expense = {
+                    id: uuidv4(),
+                    date: nowIso,
+                    amount: Number(p.netPay) || 0,
+                    currency: 'IDR',
+                    category: 'SALARY',
+                    description: `Salary payment (${frequency.toLowerCase()}) for ${p.name} - days ${p.daysPresent}`,
+                    created_by: user.id,
+                    cash_session_id: session?.id
+                };
+                await stores.transactions.expenses.setItem(expense.id, expense);
+                await SyncEngine.addToQueue('expense', 'create', expense);
+            }
+            toast.success('Salaries recorded as expenses');
+            setGeneratedPayroll([]);
+            setExtraAllowances({});
+            setBonDeductions({});
+        } catch (e) {
+            console.error(e);
+            toast.error('Failed to record salaries');
+        } finally {
+            setIsPaying(false);
+        }
     };
 
     return (
@@ -117,6 +182,15 @@ export default function PayrollPage() {
                         <option value="WEEKLY">Weekly</option>
                         <option value="MONTHLY">Monthly Salary</option>
                     </select>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium mb-1">Daily Allowance per Day</label>
+                    <input
+                        type="number"
+                        className="border rounded p-2 min-w-[150px]"
+                        value={dailyAllowancePerDay}
+                        onChange={e => setDailyAllowancePerDay(Number(e.target.value || 0))}
+                    />
                 </div>
 
                 <button
@@ -138,7 +212,9 @@ export default function PayrollPage() {
                                 <th className="p-3 text-right">Attendance (Days)</th>
                                 <th className="p-3 text-right">Base Pay</th>
                                 <th className="p-3 text-right text-green-600">Allowances</th>
+                                <th className="p-3 text-right">Extra Allowance</th>
                                 <th className="p-3 text-right text-red-600">Deductions</th>
+                                <th className="p-3 text-right">Bon Deduction</th>
                                 <th className="p-3 text-right font-bold">Net Pay</th>
                             </tr>
                         </thead>
@@ -147,14 +223,40 @@ export default function PayrollPage() {
                                 <tr key={p.id} className="hover:bg-gray-50">
                                     <td className="p-3 font-medium">{p.name}</td>
                                     <td className="p-3 text-right">{p.daysPresent}</td>
-                                    <td className="p-3 text-right">{p.basePay.toLocaleString()}</td>
-                                    <td className="p-3 text-right text-green-600">+{p.allowances.toLocaleString()}</td>
-                                    <td className="p-3 text-right text-red-600">-{p.deductions.toLocaleString()}</td>
-                                    <td className="p-3 text-right font-bold text-lg">{p.netPay.toLocaleString()}</td>
+                                    <td className="p-3 text-right">{formatCurrency(p.basePay)}</td>
+                                    <td className="p-3 text-right text-green-600">+{formatCurrency(p.allowances)}</td>
+                                    <td className="p-3 text-right">
+                                        <input
+                                            type="number"
+                                            className="border rounded p-1 w-28 text-right"
+                                            value={extraAllowances[p.id] || 0}
+                                            onChange={e => setExtraAllowances({ ...extraAllowances, [p.id]: Number(e.target.value || 0) })}
+                                        />
+                                    </td>
+                                    <td className="p-3 text-right text-red-600">-{formatCurrency(p.deductions)}</td>
+                                    <td className="p-3 text-right">
+                                        <input
+                                            type="number"
+                                            className="border rounded p-1 w-28 text-right"
+                                            value={bonDeductions[p.id] || 0}
+                                            onChange={e => setBonDeductions({ ...bonDeductions, [p.id]: Number(e.target.value || 0) })}
+                                        />
+                                    </td>
+                                    <td className="p-3 text-right font-bold text-lg">{formatCurrency(p.netPay)}</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+                    <div className="p-4 flex justify-end">
+                        <button
+                            onClick={paySalaries}
+                            disabled={isPaying}
+                            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                        >
+                            <Wallet className="w-4 h-4" />
+                            {isPaying ? 'Recording...' : 'Pay Salaries (Record as Expense)'}
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

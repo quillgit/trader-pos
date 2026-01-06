@@ -5,6 +5,7 @@ import type { Employee } from '@/types';
 import { EmployeeSchema } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { Plus, User, Trash } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 export default function EmployeeMaster() {
     const [employees, setEmployees] = useState<Employee[]>([]);
@@ -60,7 +61,7 @@ export default function EmployeeMaster() {
 
         // Basic validation
         if (!formData.name || !formData.pin || formData.pin.length !== 6) {
-            alert('Name required. PIN must be 6 digits.');
+            toast.error('Name required. PIN must be 6 digits.');
             return;
         }
 
@@ -77,7 +78,7 @@ export default function EmployeeMaster() {
 
         const result = EmployeeSchema.safeParse(newEmployee);
         if (!result.success) {
-            alert('Error: ' + result.error.message);
+            toast.error('Error: ' + result.error.message);
             return;
         }
 

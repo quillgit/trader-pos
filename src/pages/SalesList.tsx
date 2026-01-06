@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { stores } from '@/lib/storage';
+import { formatCurrency } from '@/lib/utils';
 import type { Transaction } from '@/types';
 import { Link } from 'react-router-dom';
 import { Plus, Search, ChevronLeft, ChevronRight, Printer, X } from 'lucide-react';
 import Receipt from '@/components/Receipt';
+import { useCashSession } from '@/hooks/use-cash-session';
 
 export default function SalesList() {
     const [sales, setSales] = useState<Transaction[]>([]);
+    const { session, isExpired } = useCashSession();
     
     // Filtering & Pagination
     const [searchTerm, setSearchTerm] = useState('');
@@ -126,17 +129,20 @@ export default function SalesList() {
                                         </div>
                                         
                                         <div className="text-right flex flex-col items-end gap-1">
-                                            <div className="font-bold">{t.total_amount.toLocaleString()}</div>
+                                            <div className="font-bold">{formatCurrency(t.total_amount, t.currency)}</div>
                                             {t.paid_amount !== undefined && (
-                                                <div className="text-xs text-gray-500">Paid: {t.paid_amount.toLocaleString()}</div>
+                                                <div className="text-xs text-gray-500">Paid: {formatCurrency(t.paid_amount, t.currency)}</div>
                                             )}
                                             {t.change_amount > 0 && (
-                                                <div className="text-xs text-green-600">Change: {t.change_amount.toLocaleString()}</div>
+                                                <div className="text-xs text-green-600">Change: {formatCurrency(t.change_amount, t.currency)}</div>
                                             )}
                                             
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span className={`text-[10px] px-1 rounded ${t.sync_status === 'SYNCED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                                     {t.sync_status}
+                                                </span>
+                                                <span className={`text-[10px] px-1 rounded ${t.payment_method === 'CASH' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                    {t.payment_method}
                                                 </span>
                                                 {(t.paid_amount ?? 0) < t.total_amount && (
                                                     <span className="text-[10px] px-1 rounded bg-red-100 text-red-700 font-bold">
@@ -150,6 +156,15 @@ export default function SalesList() {
                                                 >
                                                     <Printer className="w-3.5 h-3.5" />
                                                 </button>
+                                                {session && !isExpired && t.cash_session_id === session.id && (
+                                                    <Link
+                                                        to={`/sales/${t.id}/edit`}
+                                                        className="px-2 py-1 text-xs border rounded hover:bg-orange-50 text-orange-700"
+                                                        title="Edit (current session)"
+                                                    >
+                                                        Edit
+                                                    </Link>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

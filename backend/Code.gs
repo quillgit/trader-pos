@@ -34,15 +34,81 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    if (data.action === 'create' || data.action === 'update') {
-       handleWrite(ss, data);
-    } // sync queue might send array?
+    // One-Click Bootstrap: initialize all required sheets with headers
+    if (data && data.action === 'bootstrap') {
+      bootstrapSheets(ss);
+      return jsonResponse({ status: 'success', message: 'Bootstrap complete' });
+    }
+    
+    if (Array.isArray(data)) {
+      data.forEach(function(entry) {
+        if (entry.action === 'create' || entry.action === 'update') {
+          handleWrite(ss, entry);
+        }
+      });
+    } else {
+      if (data.action === 'create' || data.action === 'update') {
+         handleWrite(ss, data);
+      }
+    }
     
     return jsonResponse({status: 'success'});
   } catch (err) {
     return jsonResponse({status: 'error', error: err.toString()});
   } finally {
     lock.releaseLock();
+  }
+}
+
+function bootstrapSheets(ss) {
+  // Masters
+  ensureSheetWithHeaders(ss, 'master_products', ['id','name','unit','category','price_buy','price_sell','updated_at']);
+  ensureSheetWithHeaders(ss, 'master_partners', ['id','name','type','is_supplier','is_customer','sub_type','phone','address','updated_at']);
+  ensureSheetWithHeaders(ss, 'master_employees', ['id','name','pin','role','salary_frequency','base_salary','updated_at']);
+  
+  // Transactions
+  ensureSheetWithHeaders(ss, 'trx_sales', [
+    'id','date','type',
+    'partner_id','partner_name',
+    'items_json',
+    'total_amount','paid_amount','change_amount',
+    'currency','reference_id','cash_session_id',
+    'sync_status','created_by','notes','raw_json','payment_method'
+  ]);
+  ensureSheetWithHeaders(ss, 'trx_purchases', [
+    'id','date','type',
+    'partner_id','partner_name',
+    'items_json',
+    'total_amount','paid_amount','change_amount',
+    'currency','reference_id','cash_session_id',
+    'sync_status','created_by','notes','raw_json','payment_method'
+  ]);
+  ensureSheetWithHeaders(ss, 'trx_expenses', ['id','date','category','amount','currency','description','created_by','session_id','raw_json']);
+  ensureSheetWithHeaders(ss, 'trx_sessions', ['id','date','status','start_amount','end_amount','created_by','closed_by','raw_json','transactions_count','expenses_count']);
+  
+  // HRIS
+  ensureSheetWithHeaders(ss, 'hris_attendance', ['id','employee_id','timestamp','type','sync_status']);
+  
+  // Settings
+  ensureSheetWithHeaders(ss, 'app_settings', ['key','value']);
+}
+
+function ensureSheetWithHeaders(ss, name, headers) {
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+  }
+  // Write headers only if empty or first row different
+  const lastRow = sheet.getLastRow();
+  if (lastRow === 0) {
+    sheet.appendRow(headers);
+  } else {
+    const existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const needUpdate = headers.some(function(h){ return existingHeaders.indexOf(h) === -1; });
+    if (needUpdate) {
+      const newHeaders = existingHeaders.concat(headers.filter(function(h){ return existingHeaders.indexOf(h) === -1; }));
+      sheet.getRange(1,1,1,newHeaders.length).setValues([newHeaders]);
+    }
   }
 }
 
@@ -53,7 +119,14 @@ function handleWrite(ss, data) {
   
   // Map types to sheet names
   if (type === 'transaction') {
-    sheetName = payload.type === 'PURCHASE' ? 'trx_purchases' : 'trx_sales';
+    var t = payload.type;
+    if (t === 'PURCHASE' || t === 'PAYMENT_OUT') {
+      sheetName = 'trx_purchases';
+    } else if (t === 'SALE' || t === 'PAYMENT_IN') {
+      sheetName = 'trx_sales';
+    } else {
+      sheetName = 'trx_sales';
+    }
   } else if (type === 'expense') {
     sheetName = 'trx_expenses';
   } else if (type === 'session') {
@@ -76,15 +149,45 @@ function handleWrite(ss, data) {
     sheet = ss.insertSheet(sheetName);
     // Initialize headers based on type
     if (sheetName === 'trx_sales' || sheetName === 'trx_purchases') {
-       sheet.appendRow(['id', 'date', 'type', 'partner_id', 'partner_name', 'items_json', 'total', 'created_by']);
+       sheet.appendRow([
+         'id','date','type',
+         'partner_id','partner_name',
+         'items_json',
+         'total_amount','paid_amount','change_amount',
+         'currency','reference_id','cash_session_id',
+         'sync_status','created_by','notes','raw_json'
+       ]);
     } else if (sheetName === 'trx_expenses') {
-       sheet.appendRow(['id', 'date', 'category', 'amount', 'description', 'created_by', 'session_id']);
+       sheet.appendRow(['id', 'date', 'category', 'amount', 'currency', 'description', 'created_by', 'session_id', 'raw_json']);
     } else if (sheetName === 'trx_sessions') {
-       sheet.appendRow(['id', 'date', 'status', 'start_amount', 'end_amount', 'created_by', 'closed_by']);
+       sheet.appendRow(['id', 'date', 'status', 'start_amount', 'end_amount', 'created_by', 'closed_by', 'raw_json']);
     } else if (sheetName.startsWith('master_')) {
        // Generic master headers - could be dynamic but better to be checking
        const keys = Object.keys(payload);
        sheet.appendRow(keys);
+    }
+  } else {
+    // Ensure required headers exist; append missing to end of header row
+    var existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var required = [];
+    if (sheetName === 'trx_sales' || sheetName === 'trx_purchases') {
+      required = [
+        'id','date','type',
+        'partner_id','partner_name',
+        'items_json',
+        'total_amount','paid_amount','change_amount',
+        'currency','reference_id','cash_session_id',
+        'sync_status','created_by','notes','raw_json'
+      ];
+    } else if (sheetName === 'trx_expenses') {
+      required = ['id','date','category','amount','currency','description','created_by','session_id','raw_json'];
+    } else if (sheetName === 'trx_sessions') {
+      required = ['id','date','status','start_amount','end_amount','created_by','closed_by','raw_json'];
+    }
+    var missing = required.filter(function(h){ return existingHeaders.indexOf(h) === -1; });
+    if (missing.length > 0) {
+      var newHeaders = existingHeaders.concat(missing);
+      sheet.getRange(1,1,1,newHeaders.length).setValues([newHeaders]);
     }
   }
   
@@ -93,9 +196,10 @@ function handleWrite(ss, data) {
   
   // Simple Append Implementation for MVP
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const row = headers.map(h => {
-    if (h === 'items_json') return JSON.stringify(payload.items);
-    return payload[h] || '';
+  const row = headers.map(function(h) {
+    if (h === 'items_json') return JSON.stringify(payload.items || []);
+    if (h === 'raw_json') return JSON.stringify(payload || {});
+    return payload[h] !== undefined ? payload[h] : '';
   });
   
   sheet.appendRow(row);

@@ -1,34 +1,116 @@
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useOfflineStatus } from '@/hooks/use-offline';
 import { cn } from '@/lib/utils';
-import { Home, Package, Users, ShoppingCart, Wifi, WifiOff, FileText, UserCircle, Settings, UserPlus, Menu, FileBarChart, Wallet, CreditCard, Banknote } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { 
+    Home, Package, Users, ShoppingCart, Wifi, WifiOff, FileText, 
+    UserCircle, Settings, UserPlus, Menu, FileBarChart, Wallet, 
+    CreditCard, Banknote, LogOut, LayoutDashboard
+} from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Employee } from '@/types';
 
+type Role = Employee['role'];
+
+interface NavItem {
+    label: string;
+    path: string;
+    icon: any;
+    roles?: Role[];
+}
+
+interface NavGroup {
+    title?: string;
+    items: NavItem[];
+    roles?: Role[];
+}
 
 export default function Layout() {
     const { isOnline } = useOfflineStatus();
     const location = useLocation();
+    const { user, logout } = useAuth();
     const [companyName, setCompanyName] = useState('ComTrade');
+    const navigate = useNavigate();
 
     useEffect(() => {
         const storedName = localStorage.getItem('COMPANY_NAME');
         if (storedName) setCompanyName(storedName);
     }, []);
 
-    const navItems = [
-        { label: 'Dashboard', path: '/', icon: Home },
-        { label: 'Products', path: '/products', icon: Package },
-        { label: 'Partners', path: '/partners', icon: Users },
-        { label: 'Purchases', path: '/purchases', icon: ShoppingCart },
-        { label: 'Sales', path: '/sales', icon: FileText },
-        { label: 'Expenses', path: '/expenses', icon: Banknote },
-        { label: 'Cash In', path: '/cash-in', icon: Wallet },
-        { label: 'Cash Out', path: '/cash-out', icon: CreditCard },
-        { label: 'Reports', path: '/reports', icon: FileBarChart },
-        { label: 'Employees', path: '/employees', icon: UserPlus },
-        { label: 'HRIS', path: '/hris', icon: UserCircle },
-        { label: 'Settings', path: '/settings', icon: Settings },
+    const hasAccess = (allowedRoles?: Role[]) => {
+        if (!allowedRoles || allowedRoles.length === 0) return true;
+        if (!user) return false;
+        return allowedRoles.includes(user.role);
+    };
+
+    const navGroups: NavGroup[] = [
+        {
+            items: [
+                { label: 'Dashboard', path: '/', icon: Home }
+            ]
+        },
+        {
+            title: 'Transactions',
+            items: [
+                { label: 'Sales', path: '/sales', icon: FileText, roles: ['ADMIN', 'FINANCE', 'FIELD'] },
+                { label: 'Purchases', path: '/purchases', icon: ShoppingCart, roles: ['ADMIN', 'FINANCE', 'FIELD'] },
+                { label: 'Topup', path: '/topup', icon: Wallet, roles: ['ADMIN', 'FINANCE'] }
+            ]
+        },
+        {
+            title: 'Finance',
+            items: [
+                { label: 'Cash In', path: '/cash-in', icon: Wallet, roles: ['ADMIN', 'FINANCE'] },
+                { label: 'Cash Out', path: '/cash-out', icon: CreditCard, roles: ['ADMIN', 'FINANCE'] },
+                { label: 'Expenses', path: '/expenses', icon: Banknote, roles: ['ADMIN', 'FINANCE'] }
+            ]
+        },
+        {
+            title: 'Master Data',
+            items: [
+                { label: 'Products', path: '/products', icon: Package, roles: ['ADMIN', 'FINANCE', 'WAREHOUSE'] },
+                { label: 'Partners', path: '/partners', icon: Users, roles: ['ADMIN', 'FINANCE', 'FIELD'] }
+            ]
+        },
+        {
+            title: 'HRIS',
+            items: [
+                { label: 'Attendance', path: '/hris/attendance', icon: UserCircle },
+                { label: 'HR Dashboard', path: '/hris', icon: LayoutDashboard, roles: ['ADMIN', 'HR'] },
+                { label: 'Employees', path: '/employees', icon: UserPlus, roles: ['ADMIN', 'HR'] },
+                { label: 'Payroll', path: '/hris/payroll', icon: Banknote, roles: ['ADMIN', 'HR'] }
+            ]
+        },
+        {
+            title: 'Analytics',
+            items: [
+                { label: 'Reports', path: '/reports', icon: FileBarChart, roles: ['ADMIN', 'FINANCE'] }
+            ]
+        },
+        {
+            title: 'System',
+            items: [
+                { label: 'Settings', path: '/settings', icon: Settings, roles: ['ADMIN'] }
+            ]
+        }
     ];
+
+    const accessibleGroups = useMemo(() => {
+        return navGroups.map(group => ({
+            ...group,
+            items: group.items.filter(item => hasAccess(item.roles))
+        })).filter(group => group.items.length > 0 && hasAccess(group.roles));
+    }, [user]);
+
+    const handleLogout = async () => {
+        await logout();
+        navigate('/login');
+    };
+
+    // Flatten items for mobile menu
+    const mobileItems = useMemo(() => {
+        return accessibleGroups.flatMap(g => g.items).slice(0, 4);
+    }, [accessibleGroups]);
 
     return (
         <div className="flex h-screen bg-gray-50 text-gray-900 overflow-hidden font-sans">
@@ -55,36 +137,48 @@ export default function Layout() {
                     </div>
                 </div>
 
-                <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-                    {navItems.map((item) => (
-                        <Link
-                            key={item.path}
-                            to={item.path}
-                            className={cn(
-                                "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group",
-                                location.pathname === item.path
-                                    ? "bg-blue-50 text-blue-700 shadow-sm"
-                                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
+                    {accessibleGroups.map((group, idx) => (
+                        <div key={idx} className="space-y-1">
+                            {group.title && (
+                                <h3 className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                                    {group.title}
+                                </h3>
                             )}
-                        >
-                            <item.icon className={cn(
-                                "w-5 h-5 transition-colors",
-                                location.pathname === item.path ? "text-blue-600" : "text-gray-400 group-hover:text-gray-600"
-                            )} />
-                            {item.label}
-                        </Link>
+                            {group.items.map((item) => (
+                                <Link
+                                    key={item.path}
+                                    to={item.path}
+                                    className={cn(
+                                        "flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group",
+                                        location.pathname === item.path
+                                            ? "bg-blue-50 text-blue-700 shadow-sm"
+                                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                                    )}
+                                >
+                                    <item.icon className={cn(
+                                        "w-5 h-5 transition-colors",
+                                        location.pathname === item.path ? "text-blue-600" : "text-gray-400 group-hover:text-gray-600"
+                                    )} />
+                                    {item.label}
+                                </Link>
+                            ))}
+                        </div>
                     ))}
                 </nav>
 
                 <div className="p-4 border-t bg-gray-50/50">
                     <div className="flex items-center gap-3 px-2 py-2">
                         <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-bold">
-                            U
+                            {user?.name?.charAt(0) || 'U'}
                         </div>
                         <div className="flex-1 overflow-hidden">
-                            <p className="text-sm font-medium text-gray-900 truncate">Current User</p>
-                            <p className="text-xs text-gray-500 truncate">Logged In</p>
+                            <p className="text-sm font-medium text-gray-900 truncate">{user?.name || 'Current User'}</p>
+                            <p className="text-xs text-gray-500 truncate">{user?.role || 'Logged In'}</p>
                         </div>
+                        <button onClick={handleLogout} className="text-gray-400 hover:text-red-500 transition-colors" title="Logout">
+                            <LogOut className="w-5 h-5" />
+                        </button>
                     </div>
                 </div>
             </aside>
@@ -130,7 +224,7 @@ export default function Layout() {
 
                 {/* Mobile Bottom Nav */}
                 <nav className="md:hidden bg-white border-t flex items-center justify-around p-2 pb-safe fixed bottom-0 w-full z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                    {navItems.slice(0, 5).map((item) => (
+                    {mobileItems.map((item) => (
                         <Link
                             key={item.path}
                             to={item.path}

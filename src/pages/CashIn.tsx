@@ -5,9 +5,13 @@ import { Search, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { useCashSession } from '@/hooks/use-cash-session';
+import { useAuth } from '@/contexts/AuthContext';
+import { formatCurrency } from '@/lib/utils';
+import { MoneyInput } from '@/components/ui/MoneyInput';
 
 export default function CashIn() {
-    const { session } = useCashSession();
+    const { user } = useAuth();
+    const { session, isExpired } = useCashSession();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -15,7 +19,9 @@ export default function CashIn() {
     // Modal state
     const [selectedTrx, setSelectedTrx] = useState<Transaction | null>(null);
     const [paymentAmount, setPaymentAmount] = useState<number>(0);
+    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [step, setStep] = useState<'INPUT' | 'CONFIRM'>('INPUT');
 
     useEffect(() => {
         loadTransactions();
@@ -39,32 +45,49 @@ export default function CashIn() {
     const handleOpenPayment = (trx: Transaction) => {
         setSelectedTrx(trx);
         setPaymentAmount(trx.total_amount - (trx.paid_amount || 0));
+        setStep('INPUT');
     };
 
-    const handlePayment = async () => {
+    const handleReview = () => {
         if (!selectedTrx || paymentAmount <= 0) return;
         
-        if (!session) {
-            toast.error('No active cash session');
+        if (paymentMethod === 'CASH') {
+            if (!session) {
+                toast.error('No active cash session');
+                return;
+            }
+            if (isExpired) {
+                toast.error('Session expired. Please close previous session.');
+                return;
+            }
+        }
+
+        if (paymentAmount > (selectedTrx.total_amount - (selectedTrx.paid_amount || 0))) {
+            toast.error('Payment amount exceeds remaining balance');
             return;
         }
+
+        setStep('CONFIRM');
+    };
+
+    const handleFinalPayment = async () => {
+        if (!selectedTrx) return;
 
         setIsSubmitting(true);
         try {
             const currentPaid = selectedTrx.paid_amount || 0;
             const newPaid = currentPaid + paymentAmount;
             
-            if (newPaid > selectedTrx.total_amount) {
-                toast.error('Payment amount exceeds remaining balance');
-                setIsSubmitting(false);
-                return;
-            }
-
             // 1. Update the original transaction
             const updatedTrx = {
                 ...selectedTrx,
                 paid_amount: newPaid,
-                change_amount: newPaid > selectedTrx.total_amount ? newPaid - selectedTrx.total_amount : 0
+                change_amount: newPaid > selectedTrx.total_amount ? newPaid - selectedTrx.total_amount : 0,
+                notes: (() => {
+                    const timestamp = new Date().toLocaleString();
+                    const note = `[System ${timestamp}] Payment received: ${formatCurrency(paymentAmount, selectedTrx.currency || 'IDR')} (Paid ${formatCurrency(currentPaid, selectedTrx.currency || 'IDR')} -> ${formatCurrency(newPaid, selectedTrx.currency || 'IDR')})`;
+                    return selectedTrx.notes ? `${selectedTrx.notes}\n${note}` : note;
+                })()
             };
             await stores.transactions.sales.setItem(updatedTrx.id, updatedTrx);
 
@@ -81,14 +104,20 @@ export default function CashIn() {
                 change_amount: 0,
                 currency: selectedTrx.currency || 'IDR',
                 reference_id: selectedTrx.id,
-                created_by: 'CURRENT_USER',
+                created_by: user?.id || 'OFFLINE_USER',
                 sync_status: 'PENDING',
-                cash_session_id: session.id
+                cash_session_id: paymentMethod === 'CASH' ? session?.id : undefined,
+                payment_method: paymentMethod,
+                notes: (() => {
+                    const timestamp = new Date().toLocaleString();
+                    return `[System ${timestamp}] Payment In recorded for ${selectedTrx.id} via ${paymentMethod}`;
+                })()
             };
             await stores.transactions.sales.setItem(paymentTrx.id, paymentTrx);
 
             toast.success('Payment recorded successfully');
             setSelectedTrx(null);
+            setPaymentMethod('CASH');
             loadTransactions(); // Reload list
         } catch (error) {
             console.error(error);
@@ -149,15 +178,15 @@ export default function CashIn() {
                                 <div className="space-y-1 text-sm my-3">
                                     <div className="flex justify-between">
                                         <span className="text-gray-500">Total</span>
-                                        <span className="font-medium">{(trx.currency || 'IDR')} {trx.total_amount.toLocaleString()}</span>
+                                        <span className="font-medium">{formatCurrency(trx.total_amount, trx.currency)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-gray-500">Paid</span>
-                                        <span className="font-medium text-green-600">{(trx.currency || 'IDR')} {paid.toLocaleString()}</span>
+                                        <span className="font-medium text-green-600">{formatCurrency(paid, trx.currency)}</span>
                                     </div>
                                     <div className="border-t pt-1 flex justify-between font-bold text-red-600">
                                         <span>Remaining</span>
-                                        <span>{(trx.currency || 'IDR')} {remaining.toLocaleString()}</span>
+                                        <span>{formatCurrency(remaining, trx.currency)}</span>
                                     </div>
                                 </div>
                                 <button
@@ -186,39 +215,75 @@ export default function CashIn() {
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Total Outstanding</span>
                                 <span className="font-bold text-red-600">
-                                    {(selectedTrx.currency || 'IDR')} {(selectedTrx.total_amount - (selectedTrx.paid_amount || 0)).toLocaleString()}
+                                    {formatCurrency(selectedTrx.total_amount - (selectedTrx.paid_amount || 0), selectedTrx.currency)}
                                 </span>
                             </div>
                         </div>
 
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium mb-1">Payment Amount</label>
-                            <div className="flex items-center gap-2">
-                                <span className="font-bold text-gray-500">{selectedTrx.currency || 'IDR'}</span>
-                                <input
-                                    type="number"
-                                    className="w-full border rounded-lg px-3 py-2 text-lg font-bold focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        {step === 'INPUT' ? (
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium mb-1">Payment Amount</label>
+                                <MoneyInput
+                                    currency={selectedTrx.currency || 'IDR'}
                                     value={paymentAmount}
-                                    onChange={e => setPaymentAmount(Number(e.target.value))}
+                                    onChange={setPaymentAmount}
+                                    className="text-lg font-bold focus:ring-green-500"
                                     autoFocus
                                 />
+                                <div className="mt-2 text-xs text-gray-600 flex items-center gap-4">
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="radio"
+                                            value="CASH"
+                                            checked={paymentMethod === 'CASH'}
+                                            onChange={() => setPaymentMethod('CASH')}
+                                        />
+                                        <span>Cash (Session)</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="radio"
+                                            value="TRANSFER"
+                                            checked={paymentMethod === 'TRANSFER'}
+                                            onChange={() => setPaymentMethod('TRANSFER')}
+                                        />
+                                        <span>Transfer</span>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="mb-6 space-y-3">
+                                <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-center">
+                                    <div className="text-sm text-green-800 mb-1">Confirm Payment Amount</div>
+                                    <div className="text-2xl font-bold text-green-700">
+                                        {formatCurrency(paymentAmount, selectedTrx.currency)}
+                                    </div>
+                                </div>
+                                <div className="text-xs text-center text-gray-500">
+                                    {paymentMethod === 'CASH' ? 'This amount will be added to the current cash session.' : 'Recorded as transfer; does not affect session cash.'}
+                                </div>
+                                <div className="text-center">
+                                    <span className={`text-[10px] px-2 py-1 rounded ${paymentMethod === 'CASH' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        {paymentMethod}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex gap-3">
                             <button
-                                onClick={() => setSelectedTrx(null)}
+                                onClick={() => step === 'INPUT' ? setSelectedTrx(null) : setStep('INPUT')}
                                 className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 font-medium"
                                 disabled={isSubmitting}
                             >
-                                Cancel
+                                {step === 'INPUT' ? 'Cancel' : 'Back'}
                             </button>
                             <button
-                                onClick={handlePayment}
+                                onClick={step === 'INPUT' ? handleReview : handleFinalPayment}
                                 disabled={isSubmitting || paymentAmount <= 0}
                                 className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold disabled:opacity-50"
                             >
-                                {isSubmitting ? 'Processing...' : 'Confirm Payment'}
+                                {isSubmitting ? 'Processing...' : (step === 'INPUT' ? 'Review' : 'Confirm Payment')}
                             </button>
                         </div>
                     </div>

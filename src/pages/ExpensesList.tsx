@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { stores } from '@/lib/storage';
+import { formatCurrency } from '@/lib/utils';
 import type { Expense } from '@/types';
 import { Link } from 'react-router-dom';
 import { Plus, Search } from 'lucide-react';
@@ -122,7 +123,7 @@ export default function ExpensesList() {
                                             {expense.description || '-'}
                                         </td>
                                         <td className="px-4 py-3 text-right font-medium text-red-600">
-                                            {(expense.currency || 'IDR')} {expense.amount.toLocaleString()}
+                                            {formatCurrency(expense.amount, expense.currency)}
                                         </td>
                                     </tr>
                                 ))

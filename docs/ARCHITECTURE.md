@@ -83,3 +83,61 @@ The Sync Protocol remains identical regardless of the local storage engine, as l
 1.  **Backend**: Deploy MariaDB and `backend/schema.sql`. Implement API endpoints.
 2.  **Frontend**: Update `SyncEngine` to use the Batch Push/Pull protocol instead of the current single-item Queue.
 3.  **Config**: Set `VITE_API_URL` to the new backend.
+
+## Inventory & Multi-Warehouse
+
+### Goals
+- Support multiple warehouses with accurate on-hand, reserved, and available quantities per product.
+- Record all stock changes as immutable movements for auditability.
+- Work offline-first and synchronize movements with cloud backends (Sheets/SQL).
+
+### Core Concepts
+- StockMovement: Append-only ledger rows representing quantity deltas.
+- StockSummary: Derived balances per product and warehouse (on_hand, reserved, available).
+- Documents: Purchase (GR), Sales (SH), Transfer (TR), Adjustment (ADJ) generate movements on confirmation.
+
+### Data Model
+- Warehouse: id, name, code, location, is_active, created_by, updated_at
+- StockMovement: id, product_id, warehouse_id, qty_delta, uom, doc_type (GR/SH/TR/ADJ), doc_id, lot_id, effective_date, created_by, sync_status, created_at
+- StockSummary: product_id, warehouse_id, on_hand, reserved, available, updated_at
+
+### Transaction Flows
+- Goods Receipt (Purchase): +qty to receiving warehouse
+- Shipment (Sales): -qty from shipping warehouse
+- Transfer:
+  - Movement A: -qty from source warehouse
+  - Movement B: +qty to destination warehouse
+- Adjustment: +/− qty for cycle counts or damage with reason codes
+- Reservations:
+  - On Sales Order creation: reserved += qty
+  - On Shipment: post -qty movement and decrease reserved
+
+### Costing
+- Start with average cost per product per warehouse.
+- Optional FIFO/LIFO cost layers using movement references for advanced COGS.
+
+### Sync Strategy
+- Push: Send new StockMovement rows marked as PENDING to backend.
+- Pull: Fetch movements or summaries since last sync and recompute local balances.
+- Conflicts: Server-wins via updated_at; corrections use reversal movements (no deletes).
+
+### Google Sheets Schema
+- master_warehouses: id, name, code, location, is_active, created_by, updated_at
+- inv_stock_movements: columns from StockMovement
+- inv_stock_summary: product_id, warehouse_id, on_hand, reserved, available, updated_at
+
+### SQL Schema (MariaDB)
+- warehouses(id PK, name, code, location, is_active, created_by, updated_at)
+- stock_movements(id PK, product_id, warehouse_id, qty_delta, uom, doc_type, doc_id, lot_id, effective_date, created_by, sync_status, created_at)
+- stock_summary(product_id, warehouse_id, on_hand, reserved, available, updated_at, PRIMARY KEY (product_id, warehouse_id))
+
+### UI & ACL
+- Masters: Warehouses page (ADMIN/WAREHOUSE).
+- Inventory: GR, SH, Transfer, Adjustment pages.
+- Roles: WAREHOUSE operates movements; FINANCE views reports; ADMIN full access.
+
+### Implementation Plan
+- Add Warehouse master and StockMovement local store.
+- Hook Purchase/Sales confirmations to post movements.
+- Implement Transfer and Adjustment flows.
+- Extend sync services for inventory tables in Sheets and SQL backends.
