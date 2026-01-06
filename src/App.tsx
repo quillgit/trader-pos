@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from '@/components/Layout';
@@ -25,6 +26,13 @@ import PayrollPage from '@/pages/HRIS/Payroll';
 import TopupPage from '@/pages/Topup';
 
 function App() {
+  useEffect(() => {
+    const companyName = localStorage.getItem('COMPANY_NAME');
+    if (companyName) {
+      document.title = `TraderPOS - ${companyName}`;
+    }
+  }, []);
+
   return (
     <AuthProvider>
       <BrowserRouter>
