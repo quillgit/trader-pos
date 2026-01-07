@@ -18,6 +18,17 @@ function doGet(e) {
       settings: getSettings(ss)
     });
   }
+
+  // Handle Transaction Pull (Multi-Device Sync)
+  if (action === 'pull_transactions') {
+    const since = e.parameter.since; // Optional timestamp filter
+    return jsonResponse({
+      sales: getSheetData(ss, 'trx_sales', since),
+      purchases: getSheetData(ss, 'trx_purchases', since),
+      expenses: getSheetData(ss, 'trx_expenses', since),
+      sessions: getSheetData(ss, 'trx_sessions', since)
+    });
+  }
   
   return jsonResponse({status: 'ok', msg: 'Service Active v2'});
 }
@@ -70,7 +81,6 @@ function bootstrapSheets(ss) {
   ensureSheetWithHeaders(ss, 'trx_sales', [
     'id','date','type',
     'partner_id','partner_name',
-    'items_json',
     'total_amount','paid_amount','change_amount',
     'currency','reference_id','cash_session_id',
     'sync_status','created_by','notes','raw_json','payment_method'
@@ -78,10 +88,12 @@ function bootstrapSheets(ss) {
   ensureSheetWithHeaders(ss, 'trx_purchases', [
     'id','date','type',
     'partner_id','partner_name',
-    'items_json',
     'total_amount','paid_amount','change_amount',
     'currency','reference_id','cash_session_id',
     'sync_status','created_by','notes','raw_json','payment_method'
+  ]);
+  ensureSheetWithHeaders(ss, 'trx_lines', [
+    'transaction_id','item_id','item_name','qty','unit','unit_price','subtotal'
   ]);
   ensureSheetWithHeaders(ss, 'trx_expenses', ['id','date','category','amount','currency','description','created_by','session_id','raw_json']);
   ensureSheetWithHeaders(ss, 'trx_sessions', ['id','date','status','start_amount','end_amount','created_by','closed_by','raw_json','transactions_count','expenses_count']);
@@ -152,7 +164,6 @@ function handleWrite(ss, data) {
        sheet.appendRow([
          'id','date','type',
          'partner_id','partner_name',
-         'items_json',
          'total_amount','paid_amount','change_amount',
          'currency','reference_id','cash_session_id',
          'sync_status','created_by','notes','raw_json'
@@ -174,7 +185,6 @@ function handleWrite(ss, data) {
       required = [
         'id','date','type',
         'partner_id','partner_name',
-        'items_json',
         'total_amount','paid_amount','change_amount',
         'currency','reference_id','cash_session_id',
         'sync_status','created_by','notes','raw_json'
@@ -197,14 +207,41 @@ function handleWrite(ss, data) {
   // Simple Append Implementation for MVP
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const row = headers.map(function(h) {
-    if (h === 'items_json') return JSON.stringify(payload.items || []);
     if (h === 'raw_json') return JSON.stringify(payload || {});
     return payload[h] !== undefined ? payload[h] : '';
   });
   
   sheet.appendRow(row);
+  
+  if ((sheetName === 'trx_sales' || sheetName === 'trx_purchases') && Array.isArray(payload.items)) {
+    appendTransactionLines(ss, payload.id, payload.items);
+  }
 }
 
+function appendTransactionLines(ss, transactionId, items) {
+  var sheet = ss.getSheetByName('trx_lines');
+  if (!sheet) {
+    sheet = ss.insertSheet('trx_lines');
+    sheet.appendRow(['transaction_id','item_id','item_name','qty','unit','unit_price','subtotal']);
+  }
+  var rows = items.map(function(it) {
+    var qty = Number(it.qty || it.quantity || 0);
+    var price = Number(it.unit_price || it.price || 0);
+    var subtotal = it.subtotal !== undefined ? Number(it.subtotal) : qty * price;
+    return [
+      transactionId,
+      it.item_id || it.product_id || it.id || '',
+      it.item_name || it.product_name || it.name || '',
+      qty,
+      it.unit || '',
+      price,
+      subtotal
+    ];
+  });
+  if (rows.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 7).setValues(rows);
+  }
+}
 function getSettings(ss) {
   const sheet = ss.getSheetByName('app_settings');
   if (!sheet) return {};

@@ -42,6 +42,21 @@ export const api = {
         return response.json();
     },
 
+    async pullTransactions(since?: string) {
+        const baseUrl = getApiUrl();
+        if (!baseUrl) throw new Error('API URL not configured');
+
+        const url = new URL(baseUrl);
+        url.searchParams.set('action', 'pull_transactions');
+        if (since) url.searchParams.set('since', since);
+
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+            throw new Error(`Pull transactions failed: ${response.statusText}`);
+        }
+        return response.json();
+    },
+
     async pushSettings(settings: any) {
          const baseUrl = getApiUrl();
          if (!baseUrl) throw new Error('API URL not configured');

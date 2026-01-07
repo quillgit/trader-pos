@@ -21,6 +21,7 @@ import CashIn from '@/pages/CashIn';
 import CashOut from '@/pages/CashOut';
 import Settings from '@/pages/Settings';
 import Reports from '@/pages/Reports';
+import UserGuide from '@/pages/UserGuide';
 import HRISDashboard from '@/pages/HRIS/Dashboard';
 import AttendancePage from '@/pages/HRIS/Attendance';
 import PayrollPage from '@/pages/HRIS/Payroll';
@@ -144,6 +145,7 @@ function App() {
                 <Settings />
               </RoleRoute>
             } />
+            <Route path="guide" element={<UserGuide />} />
 
             {/* HRIS */}
             <Route path="hris" element={

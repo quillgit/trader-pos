@@ -64,6 +64,7 @@ export const SyncEngine = {
             return;
         }
 
+        // 1. Sync Masters
         const types = ['product', 'partner', 'employee', 'expense_category'];
         const storeMap: Record<string, any> = {
             'product': stores.masters.products,
@@ -95,7 +96,54 @@ export const SyncEngine = {
             }
         }
 
-        // Sync Settings
+        // 2. Sync Transactions (Multi-Device)
+        try {
+            const lastPullTime = localStorage.getItem('LAST_TRX_PULL_TIME') || '0';
+            const data = await api.pullTransactions(lastPullTime);
+            
+            if (data) {
+                // Sales
+                if (Array.isArray(data.sales)) {
+                    for (const trx of data.sales) {
+                        // Avoid overwriting pending changes? 
+                        // Strategy: Server wins, but if we have local pending edits, it might be tricky.
+                        // For now, assume simple append-only or replace.
+                        await stores.transactions.sales.setItem(trx.id, { ...trx, sync_status: 'SYNCED' });
+                    }
+                    console.log(`Pulled ${data.sales.length} sales`);
+                }
+                
+                // Purchases
+                if (Array.isArray(data.purchases)) {
+                    for (const trx of data.purchases) {
+                        await stores.transactions.purchases.setItem(trx.id, { ...trx, sync_status: 'SYNCED' });
+                    }
+                    console.log(`Pulled ${data.purchases.length} purchases`);
+                }
+
+                // Expenses
+                if (Array.isArray(data.expenses)) {
+                     for (const exp of data.expenses) {
+                        await stores.transactions.expenses.setItem(exp.id, { ...exp, sync_status: 'SYNCED' });
+                    }
+                    console.log(`Pulled ${data.expenses.length} expenses`);
+                }
+
+                // Sessions
+                 if (Array.isArray(data.sessions)) {
+                     for (const sess of data.sessions) {
+                        await stores.transactions.sessions.setItem(sess.id, { ...sess, sync_status: 'SYNCED' });
+                    }
+                    console.log(`Pulled ${data.sessions.length} sessions`);
+                }
+
+                localStorage.setItem('LAST_TRX_PULL_TIME', Date.now().toString());
+            }
+        } catch (e) {
+             console.error('Failed to pull transactions', e);
+        }
+
+        // 3. Sync Settings
         try {
             const settings = await api.fetchMasters('settings');
             if (settings && typeof settings === 'object') {

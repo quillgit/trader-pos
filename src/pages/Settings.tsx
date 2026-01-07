@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { LicenseService, type LicenseInfo } from '@/services/license';
-import { Save, CheckCircle, XCircle, Building2, Server, LayoutTemplate, Loader2, Key } from 'lucide-react';
+import { Save, CheckCircle, XCircle, Building2, Server, LayoutTemplate, Loader2, Key, QrCode } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { SyncEngine } from '@/services/sync';
 import { SyncServiceSQL } from '@/services/SyncServiceSQL';
 import { api } from '@/services/api';
 import { GoogleProvision } from '@/services/googleProvision';
+import QRCode from 'react-qr-code';
 
 
 export default function Settings() {
@@ -18,6 +19,8 @@ export default function Settings() {
     const [isManagedClientId, setIsManagedClientId] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     
+    const [showQRCode, setShowQRCode] = useState(false);
+
     // License State
     const [licenseKey, setLicenseKey] = useState('');
     const [licenseInfo, setLicenseInfo] = useState<LicenseInfo>({ key: '', status: 'none', plan: 'standard' });
@@ -374,6 +377,66 @@ export default function Settings() {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Share Connection Feature */}
+                            {apiUrl && (
+                                <div className="pt-4 border-t border-gray-100">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Share Connection (Multi-Device Setup)</label>
+                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                        <p className="text-sm text-blue-800 mb-3">
+                                            Use this magic link or QR code to instantly connect other devices (Staff/Warehouse) to this database.
+                                        </p>
+                                        <div className="flex flex-wrap gap-3">
+                                            <button
+                                                onClick={() => {
+                                                    const config = {
+                                                        apiUrl,
+                                                        companyName,
+                                                        companyAddress,
+                                                        companyPhone
+                                                    };
+                                                    const payload = btoa(JSON.stringify(config));
+                                                    const link = `${window.location.origin}/login?setup=${payload}`;
+                                                    
+                                                    navigator.clipboard.writeText(link);
+                                                    toast.success('Setup link copied to clipboard!');
+                                                }}
+                                                className="flex items-center gap-2 px-4 py-2 bg-white text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 text-sm font-medium transition-colors"
+                                            >
+                                                <Key className="w-4 h-4" />
+                                                Copy Magic Setup Link
+                                            </button>
+                                            
+                                            <button
+                                                onClick={() => setShowQRCode(!showQRCode)}
+                                                className="flex items-center gap-2 px-4 py-2 bg-white text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 text-sm font-medium transition-colors"
+                                            >
+                                                <QrCode className="w-4 h-4" />
+                                                {showQRCode ? 'Hide QR Code' : 'Show QR Code'}
+                                            </button>
+                                        </div>
+
+                                        {showQRCode && (
+                                            <div className="mt-4 p-4 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col items-center animate-in fade-in zoom-in duration-200">
+                                                <div className="bg-white p-2 rounded-lg">
+                                                    <QRCode 
+                                                        value={`${window.location.origin}/login?setup=${btoa(JSON.stringify({
+                                                            apiUrl,
+                                                            companyName,
+                                                            companyAddress,
+                                                            companyPhone
+                                                        }))}`}
+                                                        size={200}
+                                                        level="M"
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-2 text-center">Scan with another device to auto-configure</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">SQL Backend URL (MariaDB)</label>

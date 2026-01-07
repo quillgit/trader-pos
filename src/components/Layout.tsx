@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { 
     Home, Package, Users, ShoppingCart, Wifi, WifiOff, FileText, 
     Settings, Menu, FileBarChart, Wallet, 
-    CreditCard, Banknote, LogOut
+    CreditCard, Banknote, LogOut, Book
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -92,7 +92,8 @@ export default function Layout() {
         {
             title: 'System',
             items: [
-                { label: 'Settings', path: '/settings', icon: Settings, roles: ['ADMIN'] }
+                { label: 'Settings', path: '/settings', icon: Settings, roles: ['ADMIN'] },
+                { label: 'User Guide', path: '/guide', icon: Book }
             ]
         }
     ];
