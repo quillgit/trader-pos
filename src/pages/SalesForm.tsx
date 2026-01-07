@@ -34,7 +34,7 @@ export default function SalesForm() {
     // Printing
     const [showPrintConfirm, setShowPrintConfirm] = useState(false);
     const [printingTransaction, setPrintingTransaction] = useState<Transaction | null>(null);
-    const [companyInfo] = useState({ name: 'ComTrade', address: 'Local Market', phone: '-' });
+    const [companyInfo, setCompanyInfo] = useState({ name: 'ComTrade', address: 'Local Market', phone: '-' });
 
     // Component-level state for controlled inputs and derived values
     const [paidAmount, setPaidAmount] = useState<number>(0);
@@ -68,6 +68,17 @@ export default function SalesForm() {
                 if (s && s.is_customer == true) customerList.push(s);
             }
             setCustomers(customerList);
+
+            // Load Company Info
+            const cName = localStorage.getItem('COMPANY_NAME');
+            const cAddress = localStorage.getItem('COMPANY_ADDRESS');
+            const cPhone = localStorage.getItem('COMPANY_PHONE');
+            
+            setCompanyInfo({
+                name: cName || 'ComTrade',
+                address: cAddress || 'Local Market',
+                phone: cPhone || '-'
+            });
         };
         loadMasters();
     }, []);

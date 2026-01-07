@@ -36,7 +36,7 @@ export default function PurchaseForm() {
     // Printing
     const [showPrintConfirm, setShowPrintConfirm] = useState(false);
     const [printingTransaction, setPrintingTransaction] = useState<Transaction | null>(null);
-    const [companyInfo] = useState({ name: 'ComTrade', address: 'Local Market', phone: '-' }); // Mock/Default
+    const [companyInfo, setCompanyInfo] = useState({ name: 'ComTrade', address: 'Local Market', phone: '-' }); // Mock/Default
 
     // Item entry state
     const [currentItem, setCurrentItem] = useState({
@@ -66,6 +66,17 @@ export default function PurchaseForm() {
                 if (s && s.is_supplier == true) supplierList.push(s);
             }
             setSuppliers(supplierList);
+
+            // Load Company Info
+            const cName = localStorage.getItem('COMPANY_NAME');
+            const cAddress = localStorage.getItem('COMPANY_ADDRESS');
+            const cPhone = localStorage.getItem('COMPANY_PHONE');
+            
+            setCompanyInfo({
+                name: cName || 'ComTrade',
+                address: cAddress || 'Local Market',
+                phone: cPhone || '-'
+            });
         };
         loadMasters();
     }, []);
