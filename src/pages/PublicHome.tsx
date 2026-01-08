@@ -2,13 +2,14 @@ import { Link } from 'react-router-dom';
 import { LayoutDashboard, Package, Users, FileText, Wallet, Banknote, Shield } from 'lucide-react';
 
 export default function PublicHome() {
+  const APP_NAME = import.meta.env.VITE_APP_NAME || 'TraderPOS';
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/logo-traderpos.png" alt="TraderPOS" className="w-8 h-8" />
-            <span className="font-bold text-gray-800">TraderPOS</span>
+            <img src="/logo-traderpos.png" alt={`${APP_NAME}`} className="w-8 h-8" />
+            <span className="font-bold text-gray-800">{APP_NAME}</span>
           </div>
           <nav className="flex items-center gap-4 text-sm">
             <Link to="/home" className="text-gray-700 hover:text-indigo-600">Home</Link>
@@ -93,7 +94,7 @@ export default function PublicHome() {
 
       <footer className="border-t bg-white">
         <div className="max-w-5xl mx-auto px-4 py-4 text-sm text-gray-500 flex items-center justify-between">
-          <span>© {new Date().getFullYear()} TraderPOS</span>
+          <span>© {new Date().getFullYear()} {APP_NAME}</span>
           <div className="flex items-center gap-3">
             <Link to="/privacy" className="hover:text-indigo-700">Privacy</Link>
             <Link to="/terms" className="hover:text-indigo-700">Terms</Link>

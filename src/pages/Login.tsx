@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 
 export default function Login() {
+    const APP_NAME = import.meta.env.VITE_APP_NAME || 'TraderPOS';
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const { login } = useAuth();
@@ -111,11 +112,11 @@ export default function Login() {
                 <div className="flex justify-center mb-6">
                     <img 
                         src="/logo-traderpos.png" 
-                        alt="TraderPOS Logo" 
+                        alt={`${APP_NAME} Logo`} 
                         className="w-24 h-24 object-contain"
                     />
                 </div>
-                <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">TraderPOS</h1>
+                <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">{APP_NAME}</h1>
 
                 {isAutoConfiguring ? (
                     <div className="text-center py-8 space-y-4">

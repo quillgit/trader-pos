@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 
 export default function UserGuide() {
+    const APP_NAME = import.meta.env.VITE_APP_NAME || 'TraderPOS';
     const [activeSection, setActiveSection] = useState<string | null>('getting-started');
 
     const toggleSection = (id: string) => {
@@ -193,7 +194,7 @@ export default function UserGuide() {
                     <div className="bg-green-50 p-4 rounded-lg border border-green-100 mt-4">
                         <h5 className="font-bold text-green-800 mb-1">Offline Mode</h5>
                         <p className="text-sm text-green-700">
-                            Bakul Iwak works offline! Data saves locally and syncs automatically when internet returns.
+                            {APP_NAME} works offline! Data saves locally and syncs automatically when internet returns.
                             Look for the Sync Status icon in the dashboard.
                         </p>
                     </div>
@@ -210,7 +211,7 @@ export default function UserGuide() {
                     User Guide
                 </h1>
                 <p className="text-gray-600 mt-2">
-                    Welcome to the Bakul Iwak (TraderPOS) manual. Click on a section below to learn more.
+                    Welcome to the {APP_NAME} manual. Click on a section below to learn more.
                 </p>
             </div>
 

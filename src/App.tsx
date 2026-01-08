@@ -36,9 +36,12 @@ import SetupWizard from '@/pages/SetupWizard';
 
 function App() {
   useEffect(() => {
+    const APP_NAME = import.meta.env.VITE_APP_NAME || 'TraderPOS';
     const companyName = localStorage.getItem('COMPANY_NAME');
     if (companyName) {
-      document.title = `TraderPOS - ${companyName}`;
+      document.title = `${APP_NAME} - ${companyName}`;
+    } else {
+      document.title = APP_NAME;
     }
   }, []);
 
