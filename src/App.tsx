@@ -24,6 +24,9 @@ import Settings from '@/pages/Settings';
 import AdminLicenses from '@/pages/AdminLicenses';
 import Reports from '@/pages/Reports';
 import UserGuide from '@/pages/UserGuide';
+import PublicHome from '@/pages/PublicHome';
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
+import TermsOfService from '@/pages/TermsOfService';
 import HRISDashboard from '@/pages/HRIS/Dashboard';
 import AttendancePage from '@/pages/HRIS/Attendance';
 import PayrollPage from '@/pages/HRIS/Payroll';
@@ -65,10 +68,14 @@ function App() {
       <BrowserRouter>
         <Toaster position="top-right" />
         <Routes>
+          <Route path="/" element={<PublicHome />} />
+          <Route path="/home" element={<PublicHome />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
           <Route path="/login" element={<Login />} />
           <Route path="/proposal" element={<Proposal />} />
 
-          <Route path="/" element={
+          <Route path="/app" element={
             <ProtectedRoute>
               <Layout />
             </ProtectedRoute>

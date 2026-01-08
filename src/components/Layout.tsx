@@ -47,31 +47,31 @@ export default function Layout() {
     const navGroups: NavGroup[] = [
         {
             items: [
-                { label: 'Dashboard', path: '/', icon: Home }
+                { label: 'Dashboard', path: '/app', icon: Home }
             ]
         },
         {
             title: 'Transactions',
             items: [
-                { label: 'Sales', path: '/sales', icon: FileText, roles: ['ADMIN', 'FINANCE', 'FIELD'] },
-                { label: 'Purchases', path: '/purchases', icon: ShoppingCart, roles: ['ADMIN', 'FINANCE', 'FIELD'] },
-                { label: 'Topup', path: '/topup', icon: Wallet, roles: ['ADMIN', 'FINANCE'] }
+                { label: 'Sales', path: '/app/sales', icon: FileText, roles: ['ADMIN', 'FINANCE', 'FIELD'] },
+                { label: 'Purchases', path: '/app/purchases', icon: ShoppingCart, roles: ['ADMIN', 'FINANCE', 'FIELD'] },
+                { label: 'Topup', path: '/app/topup', icon: Wallet, roles: ['ADMIN', 'FINANCE'] }
             ]
         },
         {
             title: 'Finance',
             items: [
-                { label: 'Cash In', path: '/cash-in', icon: Wallet, roles: ['ADMIN', 'FINANCE'] },
-                { label: 'Cash Out', path: '/cash-out', icon: CreditCard, roles: ['ADMIN', 'FINANCE'] },
-                { label: 'Expenses', path: '/expenses', icon: Banknote, roles: ['ADMIN', 'FINANCE'] }
+                { label: 'Cash In', path: '/app/cash-in', icon: Wallet, roles: ['ADMIN', 'FINANCE'] },
+                { label: 'Cash Out', path: '/app/cash-out', icon: CreditCard, roles: ['ADMIN', 'FINANCE'] },
+                { label: 'Expenses', path: '/app/expenses', icon: Banknote, roles: ['ADMIN', 'FINANCE'] }
             ]
         },
         {
             title: 'Master Data',
             items: [
-                { label: 'Products', path: '/products', icon: Package, roles: ['ADMIN', 'FINANCE', 'WAREHOUSE'] },
-                { label: 'Partners', path: '/partners', icon: Users, roles: ['ADMIN', 'FINANCE', 'FIELD'] },
-                { label: 'Expense Categories', path: '/expense-categories', icon: Banknote, roles: ['ADMIN', 'FINANCE'] }
+                { label: 'Products', path: '/app/products', icon: Package, roles: ['ADMIN', 'FINANCE', 'WAREHOUSE'] },
+                { label: 'Partners', path: '/app/partners', icon: Users, roles: ['ADMIN', 'FINANCE', 'FIELD'] },
+                { label: 'Expense Categories', path: '/app/expense-categories', icon: Banknote, roles: ['ADMIN', 'FINANCE'] }
             ]
         },
         // {
@@ -86,15 +86,15 @@ export default function Layout() {
         {
             title: 'Analytics',
             items: [
-                { label: 'Reports', path: '/reports', icon: FileBarChart, roles: ['ADMIN', 'FINANCE'] }
+                { label: 'Reports', path: '/app/reports', icon: FileBarChart, roles: ['ADMIN', 'FINANCE'] }
             ]
         },
         {
             title: 'System',
             items: [
-                { label: 'Settings', path: '/settings', icon: Settings, roles: ['ADMIN'] },
-                { label: 'Licenses', path: '/admin/licenses', icon: Key, roles: ['ADMIN'] },
-                { label: 'User Guide', path: '/guide', icon: Book }
+                { label: 'Settings', path: '/app/settings', icon: Settings, roles: ['ADMIN'] },
+                { label: 'Licenses', path: '/app/admin/licenses', icon: Key, roles: ['ADMIN'] },
+                { label: 'User Guide', path: '/app/guide', icon: Book }
             ]
         }
     ];
