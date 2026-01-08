@@ -5,7 +5,7 @@ Dalam bisnis perdagangan komoditas yang bergerak cepat, pencatatan manual sering
 
 **Bakul Iwak (TraderPOS)** hadir sebagai solusi aplikasi kasir dan manajemen bisnis yang dirancang khusus untuk pedagang komoditas. Aplikasi ini mengutamakan kecepatan, kemudahan penggunaan, dan kemampuan bekerja tanpa internet (Offline-First), memastikan operasional Anda tidak terganggu oleh kendala sinyal.
 
-![Dashboard Utama](screenshots/dashboard.png)
+![Dashboard Utama](public/screenshots/dashboard.png)
 *Tampilan Dashboard Utama yang Ringkas dan Informatif*
 
 ---
@@ -16,21 +16,21 @@ Aplikasi ini mencakup fitur-fitur esensial untuk mengelola operasional harian An
 
 ### A. Transaksi & Kasir (POS)
 *   **Pembelian (Inbound):** Catat pembelian komoditas dari petani/supplier dengan cepat. Sistem otomatis menghitung total harga berdasarkan berat dan harga satuan.
-![Form Pembelian](screenshots/purchase_form.png)
+![Form Pembelian](public/screenshots/purchase_form.png)
 *   **Penjualan (Outbound):** Proses penjualan ke pelanggan dengan struk digital. Sistem otomatis menghitung total harga berdasarkan berat dan harga satuan.
-![Form Penjualan](screenshots/sales_form.png)
+![Form Penjualan](public/screenshots/sales_form.png)
 *Antarmuka Kasir Pembelian yang Cepat dan Mudah*
 *   **Manajemen Hutang Piutang:** Pantau pembayaran parsial. Jika pembayaran kurang dari tagihan, sistem otomatis mencatatnya sebagai hutang/piutang yang bisa dilacak.
-![Manajemen Hutang Piutang](screenshots/debt.png)
+![Manajemen Hutang Piutang](public/screenshots/debt.png)
 
 
 ### B. Master Data
 *   **Master Produk:** Kelola daftar komoditas, harga beli, dan harga jual yang fleksibel.
-![Daftar Produk](screenshots/products.png)
+![Daftar Produk](public/screenshots/products.png)
 *Manajemen Master Data Produk*
 
 *   **Master Partner:** Database lengkap supplier (petani) dan pelanggan Anda.
-![Daftar Partner](screenshots/partners.png)
+![Daftar Partner](public/screenshots/partners.png)
 *Manajemen Master Data Partner*
 
 ### C. Manajemen Keuangan
@@ -38,24 +38,24 @@ Aplikasi ini mencakup fitur-fitur esensial untuk mengelola operasional harian An
 *   **Pencatatan Biaya:** Rekam pengeluaran operasional harian (Bensin, Makan, Plastik, dll) dengan kategori yang bisa disesuaikan.
 *   **Keamanan Kas:** Sistem sesi kasir untuk memastikan uang fisik di laci cocok dengan catatan sistem saat tutup buku.
 
-![Pencatatan Pengeluaran](screenshots/expenses.png)
+![Pencatatan Pengeluaran](public/screenshots/expenses.png)
 *Pencatatan Biaya Operasional Harian*
 
 ### D. Laporan & Analisa
 *   **Laporan Harian:** Ringkasan omzet, laba kotor, dan pengeluaran per hari.
 *   ***Laporan Kas Harian:*** Ringkasan arus kas per hari, termasuk modal, topup, dan pengeluaran operasional.
-![Laporan Kas Harian](screenshots/report_dailycashbook.png)
+![Laporan Kas Harian](public/screenshots/report_dailycashbook.png)
 *Laporan Kas Harian dan Fitur Ekspor Excel*
 
 *   ***Laporan Penjualan & Pembelian:*** Ringkasan omzet, laba kotor, dan pengeluaran per hari.
-![Laporan Penjualan](screenshots/report_salespurchase.png)
+![Laporan Penjualan](public/screenshots/report_salespurchase.png)
 *Laporan Penjualan dan Fitur Ekspor Excel*
 
 
 
 *   **Ekspor Excel:** Semua data laporan bisa diunduh ke format Excel (.xlsx) untuk analisa lebih lanjut atau pembukuan bulanan.
 
-![Laporan Harian](screenshots/reports.png)
+![Laporan Harian](public/screenshots/reports.png)
 *Laporan Harian dan Fitur Ekspor Excel*
 
 ### E. Teknologi Handal

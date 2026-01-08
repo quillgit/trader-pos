@@ -1,15 +1,24 @@
 import { useState, useEffect } from 'react';
-import { LicenseService, type LicenseInfo } from '@/services/license';
-import { Save, CheckCircle, XCircle, Building2, Server, LayoutTemplate, Loader2, Key, QrCode } from 'lucide-react';
+import { LicenseService, type LicenseInfo, type LicenseDevice } from '@/services/license';
+import { SecurityService } from '@/services/security';
+import { Save, CheckCircle, XCircle, Building2, Server, LayoutTemplate, Loader2, Key, QrCode, Lock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { SyncEngine } from '@/services/sync';
 import { SyncServiceSQL } from '@/services/SyncServiceSQL';
 import { api } from '@/services/api';
 import { GoogleProvision } from '@/services/googleProvision';
 import QRCode from 'react-qr-code';
+import { StorageService } from '@/lib/storage';
 
 
 export default function Settings() {
+    // Security State
+    const [isLocked, setIsLocked] = useState(false);
+    const [pinInput, setPinInput] = useState('');
+    const [isSettingPin, setIsSettingPin] = useState(false);
+    const [newPin, setNewPin] = useState('');
+    const [confirmPin, setConfirmPin] = useState('');
+
     const [apiUrl, setApiUrl] = useState('');
     const [sqlApiUrl, setSqlApiUrl] = useState('');
     const [companyName, setCompanyName] = useState('');
@@ -18,6 +27,7 @@ export default function Settings() {
     const [googleClientId, setGoogleClientId] = useState('');
     const [isManagedClientId, setIsManagedClientId] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
     
     const [showQRCode, setShowQRCode] = useState(false);
 
@@ -25,9 +35,12 @@ export default function Settings() {
     const [licenseKey, setLicenseKey] = useState('');
     const [licenseInfo, setLicenseInfo] = useState<LicenseInfo>({ key: '', status: 'none', plan: 'standard' });
     const [isVerifyingLicense, setIsVerifyingLicense] = useState(false);
+    const [devices, setDevices] = useState<LicenseDevice[]>([]);
+    const [loadingDevices, setLoadingDevices] = useState(false);
 
     const [testStatus, setTestStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
     const [message, setMessage] = useState('');
+    const [resetConfirm, setResetConfirm] = useState('');
     
     const [activeTab, setActiveTab] = useState<'general' | 'connections' | 'license'>('general');
 
@@ -65,12 +78,33 @@ export default function Settings() {
         }
     }, []);
 
+    useEffect(() => {
+        const loadDevices = async () => {
+            if (licenseInfo.status !== 'active') {
+                setDevices([]);
+                return;
+            }
+            setLoadingDevices(true);
+            try {
+                const res = await LicenseService.listLicense();
+                setDevices(res.devices || []);
+            } catch {
+                setDevices([]);
+            } finally {
+                setLoadingDevices(false);
+            }
+        };
+        loadDevices();
+    }, [licenseInfo.status]);
+
     const handleVerifyLicense = async () => {
         setIsVerifyingLicense(true);
         try {
             const info = await LicenseService.verifyLicense(licenseKey);
             setLicenseInfo(info);
             toast.success('License verified successfully!');
+            const res = await LicenseService.listLicense();
+            setDevices(res.devices || []);
         } catch (e: any) {
             toast.error(e.message);
             setLicenseInfo({ ...licenseInfo, status: 'invalid' });
@@ -84,7 +118,14 @@ export default function Settings() {
             LicenseService.removeLicense();
             setLicenseInfo({ key: '', status: 'none', plan: 'standard' });
             setLicenseKey('');
+            setDevices([]);
         }
+    };
+
+    const handleRevokeDevice = async (id: string) => {
+        await LicenseService.revokeDevice(id);
+        const res = await LicenseService.listLicense();
+        setDevices(res.devices || []);
     };
 
 
@@ -166,13 +207,72 @@ export default function Settings() {
         }
     };
 
+
+    if (isLocked) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] p-4">
+                <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-sm w-full text-center">
+                    <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Lock className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-800 mb-2">Settings Locked</h2>
+                    <p className="text-sm text-gray-500 mb-6">Enter PIN to access configuration</p>
+                    
+                    <div className="flex justify-center gap-2 mb-6">
+                        {[1, 2, 3, 4].map((_, i) => (
+                            <div key={i} className={`w-3 h-3 rounded-full ${pinInput.length > i ? 'bg-indigo-600' : 'bg-gray-200'}`} />
+                        ))}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3 mb-6">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
+                            <button
+                                key={num}
+                                onClick={() => {
+                                    const next = pinInput + num;
+                                    if (next.length <= 4) {
+                                        setPinInput(next);
+                                        if (next.length === 4) {
+                                            // Auto-submit on 4th digit
+                                            setTimeout(() => {
+                                                if (SecurityService.checkPin(next)) {
+                                                    setIsLocked(false);
+                                                    setPinInput('');
+                                                    toast.success('Unlocked');
+                                                } else {
+                                                    toast.error('Incorrect PIN');
+                                                    setPinInput('');
+                                                }
+                                            }, 100);
+                                        }
+                                    }
+                                }}
+                                className={`h-12 rounded-lg text-lg font-medium transition-colors ${num === 0 ? 'col-start-2' : ''} hover:bg-gray-50 border border-gray-200 text-gray-700 active:bg-gray-100`}
+                            >
+                                {num}
+                            </button>
+                        ))}
+                    </div>
+                    <button 
+                        onClick={() => setPinInput('')}
+                        className="text-sm text-gray-400 hover:text-gray-600"
+                    >
+                        Clear
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
-            <div className="flex items-center gap-3 border-b pb-4">
-                <LayoutTemplate className="w-8 h-8 text-blue-600" />
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-800">System Settings</h2>
-                    <p className="text-sm text-gray-500">Manage your company details and server connections</p>
+            <div className="flex items-center gap-3 border-b pb-4 justify-between">
+                <div className="flex items-center gap-3">
+                    <LayoutTemplate className="w-8 h-8 text-blue-600" />
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-800">System Settings</h2>
+                        <p className="text-sm text-gray-500">Manage your company details and server connections</p>
+                    </div>
                 </div>
             </div>
 
@@ -221,6 +321,112 @@ export default function Settings() {
                             <Building2 className="w-5 h-5 text-indigo-500" />
                             <h3>Company Information</h3>
                         </div>
+
+                        {/* Security Section */}
+                        <div className="border border-indigo-100 rounded-lg p-4 bg-indigo-50/20 mb-6">
+                             <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                                    <Lock className="w-4 h-4 text-indigo-600" />
+                                    Access Security
+                                </h4>
+                                {SecurityService.hasPin() && (
+                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium flex items-center gap-1">
+                                        <CheckCircle className="w-3 h-3" />
+                                        Protected
+                                    </span>
+                                )}
+                             </div>
+                            
+                            {!isSettingPin ? (
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm text-gray-600">Settings Page Lock</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                            {SecurityService.hasPin() ? 'PIN required to access settings' : 'No PIN set (Anyone can access)'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setIsSettingPin(true)}
+                                        className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${SecurityService.hasPin() ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                                    >
+                                        {SecurityService.hasPin() ? 'Change PIN' : 'Set PIN'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="bg-white p-3 rounded border border-gray-200 animate-in fade-in slide-in-from-top-2">
+                                    <div className="mb-3">
+                                        <p className="text-sm font-medium text-gray-700 mb-1">Set New PIN</p>
+                                        <p className="text-xs text-gray-500">Enter a 4-digit PIN code.</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <input
+                                                type="password"
+                                                maxLength={4}
+                                                placeholder="New PIN"
+                                                className="w-full p-2 border border-gray-300 rounded text-center tracking-widest font-mono text-sm"
+                                                value={newPin}
+                                                onChange={e => setNewPin(e.target.value.replace(/[^0-9]/g, ''))}
+                                            />
+                                            <input
+                                                type="password"
+                                                maxLength={4}
+                                                placeholder="Confirm"
+                                                className="w-full p-2 border border-gray-300 rounded text-center tracking-widest font-mono text-sm"
+                                                value={confirmPin}
+                                                onChange={e => setConfirmPin(e.target.value.replace(/[^0-9]/g, ''))}
+                                            />
+                                        </div>
+                                        <div className="flex gap-2 pt-1">
+                                            <button
+                                                onClick={() => {
+                                                    setIsSettingPin(false);
+                                                    setNewPin('');
+                                                    setConfirmPin('');
+                                                }}
+                                                className="flex-1 py-1.5 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    if (newPin.length !== 4) {
+                                                        toast.error('PIN must be 4 digits');
+                                                        return;
+                                                    }
+                                                    if (newPin !== confirmPin) {
+                                                        toast.error('PINs do not match');
+                                                        return;
+                                                    }
+                                                    SecurityService.setPin(newPin);
+                                                    toast.success('PIN Security Enabled');
+                                                    setIsSettingPin(false);
+                                                    setNewPin('');
+                                                    setConfirmPin('');
+                                                }}
+                                                className="flex-1 py-1.5 text-xs text-white bg-indigo-600 rounded hover:bg-indigo-700 font-medium"
+                                            >
+                                                Save PIN
+                                            </button>
+                                        </div>
+                                        {SecurityService.hasPin() && (
+                                            <button
+                                                onClick={() => {
+                                                    if (confirm('Are you sure you want to remove PIN protection?')) {
+                                                        SecurityService.setPin('');
+                                                        toast.success('PIN Removed');
+                                                        setIsSettingPin(false);
+                                                    }
+                                                }}
+                                                className="w-full text-center py-1 text-[10px] text-red-500 hover:text-red-700 hover:underline"
+                                            >
+                                                Remove Protection
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                         
                         <div className="space-y-4 max-w-lg">
                             <div>
@@ -252,6 +458,49 @@ export default function Settings() {
                                     value={companyPhone}
                                     onChange={e => setCompanyPhone(e.target.value)}
                                 />
+                            </div>
+                        </div>
+
+                        <div className="border border-red-100 rounded-lg p-4 bg-red-50/30 mt-6">
+                            <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                                    <XCircle className="w-4 h-4 text-red-600" />
+                                    Danger Zone
+                                </h4>
+                            </div>
+                            <p className="text-xs text-gray-600 mb-3">
+                                This will erase all local data, caches, and sign you out.
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="Type RESET to confirm"
+                                    className="flex-1 border border-red-200 rounded px-3 py-2 text-sm"
+                                    value={resetConfirm}
+                                    onChange={e => setResetConfirm(e.target.value)}
+                                />
+                                <button
+                                    onClick={async () => {
+                                        if (resetConfirm !== 'RESET') {
+                                            toast.error('Type RESET to confirm');
+                                            return;
+                                        }
+                                        setIsResetting(true);
+                                        const t = toast.loading('Resetting application...');
+                                        try {
+                                            await StorageService.factoryReset();
+                                            toast.success('Reset complete', { id: t });
+                                        } catch (e: any) {
+                                            toast.error('Reset failed: ' + (e.message || 'unknown'), { id: t });
+                                        } finally {
+                                            setTimeout(() => window.location.reload(), 800);
+                                        }
+                                    }}
+                                    disabled={isResetting || resetConfirm !== 'RESET'}
+                                    className={`px-4 py-2 rounded text-sm font-medium transition-colors ${resetConfirm === 'RESET' && !isResetting ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
+                                >
+                                    {isResetting ? 'Resetting...' : 'Factory Reset'}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -313,6 +562,65 @@ export default function Settings() {
                                     <div className="text-right">
                                         <p className="text-xs text-green-600">Valid until</p>
                                         <p className="text-sm font-medium text-green-800">{new Date(licenseInfo.expiry).toLocaleDateString()}</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {licenseInfo.status === 'active' && (
+                            <div className="border border-gray-100 rounded-xl p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <p className="text-sm font-semibold text-gray-700">Registered Devices</p>
+                                    <button
+                                        onClick={async () => {
+                                            const res = await LicenseService.listLicense();
+                                            setDevices(res.devices || []);
+                                        }}
+                                        className="text-xs px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700"
+                                    >
+                                        Refresh
+                                    </button>
+                                </div>
+                                {loadingDevices ? (
+                                    <div className="text-xs text-gray-500">Loading devices...</div>
+                                ) : devices.length === 0 ? (
+                                    <div className="text-xs text-gray-500">No devices registered.</div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full text-xs">
+                                            <thead>
+                                                <tr className="text-gray-600">
+                                                    <th className="text-left p-2">Device ID</th>
+                                                    <th className="text-left p-2">Status</th>
+                                                    <th className="text-left p-2">Platform</th>
+                                                    <th className="text-left p-2">Last Seen</th>
+                                                    <th className="text-right p-2">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {devices.map(d => (
+                                                    <tr key={d.device_id} className="border-t">
+                                                        <td className="p-2 font-mono">{d.device_id}</td>
+                                                        <td className="p-2">
+                                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${d.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                                {d.status}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-2">{d.platform || '-'}</td>
+                                                        <td className="p-2">{d.last_seen ? new Date(d.last_seen).toLocaleString() : '-'}</td>
+                                                        <td className="p-2 text-right">
+                                                            <button
+                                                                disabled={d.status !== 'active'}
+                                                                onClick={() => handleRevokeDevice(d.device_id)}
+                                                                className="px-3 py-1.5 rounded bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 disabled:opacity-50"
+                                                            >
+                                                                Revoke
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 )}
                             </div>

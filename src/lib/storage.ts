@@ -37,13 +37,45 @@ export const StorageService = {
             stores.masters.partners.clear(),
             stores.masters.employees.clear(),
             stores.masters.expense_categories.clear(),
+            stores.masters.payroll_components.clear(),
+            stores.masters.payroll_lines.clear(),
             stores.transactions.purchases.clear(),
             stores.transactions.sales.clear(),
             stores.transactions.attendance.clear(),
             stores.transactions.sessions.clear(),
             stores.transactions.expenses.clear(),
+            stores.transactions.hr_adjustments.clear(),
             stores.syncQueue.clear(),
             stores.meta.clear(),
         ]);
+    },
+    async factoryReset() {
+        await this.clearAll();
+        try {
+            const keys = [
+                'commodity_user',
+                'OFFLINE_TRADER_API_URL',
+                'SQL_API_URL',
+                'COMPANY_NAME',
+                'COMPANY_ADDRESS',
+                'COMPANY_PHONE',
+                'GOOGLE_OAUTH_CLIENT_ID',
+                'COMMODITY_TRADER_LICENSE',
+                'COMMODITY_TRADER_DEVICE_ID'
+            ];
+            for (const k of keys) localStorage.removeItem(k);
+        } catch {}
+        try {
+            if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map(r => r.unregister()));
+            }
+        } catch {}
+        try {
+            if ('caches' in window) {
+                const names = await caches.keys();
+                await Promise.all(names.map(n => caches.delete(n)));
+            }
+        } catch {}
     }
 };

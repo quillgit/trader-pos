@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleRoute from '@/components/RoleRoute';
@@ -20,12 +21,14 @@ import ExpenseForm from '@/pages/ExpenseForm';
 import CashIn from '@/pages/CashIn';
 import CashOut from '@/pages/CashOut';
 import Settings from '@/pages/Settings';
+import AdminLicenses from '@/pages/AdminLicenses';
 import Reports from '@/pages/Reports';
 import UserGuide from '@/pages/UserGuide';
 import HRISDashboard from '@/pages/HRIS/Dashboard';
 import AttendancePage from '@/pages/HRIS/Attendance';
 import PayrollPage from '@/pages/HRIS/Payroll';
 import TopupPage from '@/pages/Topup';
+import Proposal from '@/pages/Proposal';
 
 function App() {
   useEffect(() => {
@@ -35,12 +38,35 @@ function App() {
     }
   }, []);
 
+  const { needRefresh, offlineReady, updateServiceWorker } = useRegisterSW();
+
+  useEffect(() => {
+    if (offlineReady) {
+      toast.success('App ready for offline use');
+    }
+  }, [offlineReady]);
+
+  const updatingRef = useRef(false);
+  useEffect(() => {
+    if (needRefresh && !updatingRef.current) {
+      updatingRef.current = true;
+      const toastId = toast.loading('Updating to latest version...');
+      try {
+        updateServiceWorker(true);
+      } finally {
+        // In case reload doesn't happen immediately, prevent endless loading toast
+        setTimeout(() => toast.dismiss(toastId), 10000);
+      }
+    }
+  }, [needRefresh, updateServiceWorker]);
+
   return (
     <AuthProvider>
       <BrowserRouter>
         <Toaster position="top-right" />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/proposal" element={<Proposal />} />
 
           <Route path="/" element={
             <ProtectedRoute>
@@ -145,6 +171,7 @@ function App() {
                 <Settings />
               </RoleRoute>
             } />
+            <Route path="admin/licenses" element={<AdminLicenses />} />
             <Route path="guide" element={<UserGuide />} />
 
             {/* HRIS */}

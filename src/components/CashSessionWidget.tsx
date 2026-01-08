@@ -10,6 +10,7 @@ import { useCashSession } from '@/hooks/use-cash-session';
 import { useAuth } from '@/contexts/AuthContext';
 import { MoneyInput } from '@/components/ui/MoneyInput';
 import toast from 'react-hot-toast';
+import { LicenseService } from '@/services/license';
 
 export default function CashSessionWidget() {
     const { user } = useAuth();
@@ -26,6 +27,11 @@ export default function CashSessionWidget() {
             const startAmount = amountInput;
             if (isNaN(startAmount)) {
                 toast.error('Invalid amount');
+                return;
+            }
+            const license = LicenseService.getLicense();
+            if (license.status !== 'active' && startAmount > 500000) {
+                toast.error('License not valid. Max opening cash Rp 500.000');
                 return;
             }
 

@@ -86,7 +86,9 @@ export default function Login() {
             return;
         }
 
-        if (emp.pin === pin) {
+        const storedPin = String((emp as any).pin || '').trim();
+        const inputPin = String(pin || '').trim();
+        if (storedPin === inputPin) {
             login(emp);
             navigate('/');
         } else {

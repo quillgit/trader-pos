@@ -42,8 +42,55 @@ function doPost(e) {
   }
 
   try {
+    const actionParam = e && e.parameter && e.parameter.action ? e.parameter.action : '';
     const data = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (actionParam === 'verify_license') {
+      const key = data && data.key ? String(data.key) : '';
+      return jsonResponse(handleVerifyLicense(ss, key));
+    }
+    if (actionParam === 'license_status') {
+      const key = data && data.key ? String(data.key) : '';
+      return jsonResponse(handleLicenseStatus(ss, key));
+    }
+    if (actionParam === 'register_device') {
+      const key = data && data.key ? String(data.key) : '';
+      const deviceId = data && data.device_id ? String(data.device_id) : '';
+      const info = data && data.info ? data.info : {};
+      return jsonResponse(handleRegisterDevice(ss, key, deviceId, info));
+    }
+    if (actionParam === 'heartbeat') {
+      const key = data && data.key ? String(data.key) : '';
+      const deviceId = data && data.device_id ? String(data.device_id) : '';
+      return jsonResponse(handleHeartbeat(ss, key, deviceId));
+    }
+    if (actionParam === 'revoke_device') {
+      const key = data && data.key ? String(data.key) : '';
+      const deviceId = data && data.device_id ? String(data.device_id) : '';
+      return jsonResponse(handleRevokeDevice(ss, key, deviceId));
+    }
+    if (actionParam === 'list_license') {
+      const key = data && data.key ? String(data.key) : '';
+      return jsonResponse(handleListLicense(ss, key));
+    }
+
+    if (actionParam === 'add_license') {
+       const key = data && data.key ? String(data.key) : '';
+       const plan = data && data.plan ? String(data.plan) : 'standard';
+       const expiry = data && data.expiry ? String(data.expiry) : '';
+       
+       if (!key) return jsonResponse({ status: 'error', message: 'Missing key' });
+       
+       const rec = {
+         key: key,
+         status: computeStatus(expiry),
+         plan: plan,
+         expiry: expiry,
+         created_at: new Date().toISOString(),
+         last_checked: new Date().toISOString()
+       };
+       return jsonResponse(upsertLicense(ss, rec));
+    }
     
     // One-Click Bootstrap: initialize all required sheets with headers
     if (data && data.action === 'bootstrap') {
@@ -71,6 +118,287 @@ function doPost(e) {
   }
 }
 
+const LICENSE_SHEET = 'licenses';
+const LICENSE_DEFAULT_PLAN = 'standard';
+const LICENSE_VALID_PREFIX = 'CT-';
+const LICENSE_DEFAULT_EXPIRY_DAYS = 365;
+const LICENSE_DEVICE_SHEET = 'license_devices';
+const LICENSE_LOG_SHEET = 'license_logs';
+const LICENSE_MAX_DEVICES_DEFAULT = 3;
+
+function ensureLicenseSheet(ss) {
+  let sheet = ss.getSheetByName(LICENSE_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(LICENSE_SHEET);
+    sheet.appendRow(['key','status','plan','expiry','created_at','last_checked']);
+  } else {
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const required = ['key','status','plan','expiry','created_at','last_checked'];
+    const missing = required.filter(function(h){ return headers.indexOf(h) === -1; });
+    if (missing.length > 0) {
+      const newHeaders = headers.concat(missing);
+      sheet.getRange(1,1,1,newHeaders.length).setValues([newHeaders]);
+    }
+  }
+}
+
+function findLicenseRow(ss, key) {
+  const sheet = ss.getSheetByName(LICENSE_SHEET);
+  if (!sheet) return { row: -1, record: null };
+  const data = sheet.getDataRange().getValues();
+  const headers = data.shift();
+  const idxKey = headers.indexOf('key');
+  const idxStatus = headers.indexOf('status');
+  const idxPlan = headers.indexOf('plan');
+  const idxExpiry = headers.indexOf('expiry');
+  const idxCreated = headers.indexOf('created_at');
+  const idxChecked = headers.indexOf('last_checked');
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    if (String(row[idxKey]) === key) {
+      return {
+        row: i + 2,
+        record: {
+          key: String(row[idxKey]),
+          status: String(row[idxStatus] || ''),
+          plan: String(row[idxPlan] || ''),
+          expiry: String(row[idxExpiry] || ''),
+          created_at: String(row[idxCreated] || ''),
+          last_checked: String(row[idxChecked] || '')
+        }
+      };
+    }
+  }
+  return { row: -1, record: null };
+}
+
+function computeStatus(expiry) {
+  if (!expiry) return 'invalid';
+  var d = new Date(expiry);
+  if (isNaN(d.getTime())) return 'invalid';
+  var now = new Date();
+  if (d.getTime() >= now.getTime()) return 'active';
+  return 'expired';
+}
+
+function upsertLicense(ss, rec) {
+  ensureLicenseSheet(ss);
+  const sheet = ss.getSheetByName(LICENSE_SHEET);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const idxKey = headers.indexOf('key');
+  const idxStatus = headers.indexOf('status');
+  const idxPlan = headers.indexOf('plan');
+  const idxExpiry = headers.indexOf('expiry');
+  const idxCreated = headers.indexOf('created_at');
+  const idxChecked = headers.indexOf('last_checked');
+  const found = findLicenseRow(ss, rec.key);
+  if (found.row > 1) {
+    sheet.getRange(found.row, idxStatus + 1).setValue(rec.status);
+    sheet.getRange(found.row, idxPlan + 1).setValue(rec.plan);
+    sheet.getRange(found.row, idxExpiry + 1).setValue(rec.expiry);
+    sheet.getRange(found.row, idxChecked + 1).setValue(rec.last_checked);
+    return rec;
+  } else {
+    var nowIso = new Date().toISOString();
+    sheet.appendRow([rec.key, rec.status, rec.plan, rec.expiry, nowIso, rec.last_checked]);
+    return rec;
+  }
+}
+
+function handleVerifyLicense(ss, key) {
+  const clean = String(key || '').trim();
+  if (!clean || clean.length < 5) {
+    return { status: 'invalid', plan: LICENSE_DEFAULT_PLAN, message: 'Invalid license key format' };
+  }
+  ensureLicenseSheet(ss);
+  const existing = findLicenseRow(ss, clean);
+  if (existing.record) {
+    var status = computeStatus(existing.record.expiry);
+    var rec = {
+      key: existing.record.key,
+      status: status,
+      plan: existing.record.plan || LICENSE_DEFAULT_PLAN,
+      expiry: existing.record.expiry,
+      last_checked: new Date().toISOString()
+    };
+    upsertLicense(ss, rec);
+    return rec;
+  }
+  if (clean.indexOf(LICENSE_VALID_PREFIX) === 0 || clean.length >= 8) {
+    var exp = new Date();
+    exp.setDate(exp.getDate() + LICENSE_DEFAULT_EXPIRY_DAYS);
+    var rec2 = {
+      key: clean,
+      status: 'active',
+      plan: clean.indexOf('PRO') !== -1 ? 'premium' : LICENSE_DEFAULT_PLAN,
+      expiry: exp.toISOString(),
+      last_checked: new Date().toISOString()
+    };
+    upsertLicense(ss, rec2);
+    return rec2;
+  }
+  return { status: 'invalid', plan: LICENSE_DEFAULT_PLAN, message: 'License key not recognized' };
+}
+
+function handleLicenseStatus(ss, key) {
+  const clean = String(key || '').trim();
+  if (!clean) return { status: 'none', plan: LICENSE_DEFAULT_PLAN };
+  ensureLicenseSheet(ss);
+  const existing = findLicenseRow(ss, clean);
+  if (!existing.record) return { status: 'invalid', plan: LICENSE_DEFAULT_PLAN, message: 'Not found' };
+  var status = computeStatus(existing.record.expiry);
+  var rec = {
+    key: existing.record.key,
+    status: status,
+    plan: existing.record.plan || LICENSE_DEFAULT_PLAN,
+    expiry: existing.record.expiry,
+    last_checked: new Date().toISOString()
+  };
+  upsertLicense(ss, rec);
+  return rec;
+}
+
+function ensureDeviceSheet(ss) {
+  let sheet = ss.getSheetByName(LICENSE_DEVICE_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(LICENSE_DEVICE_SHEET);
+    sheet.appendRow(['key','device_id','status','registered_at','last_seen','user_agent','platform','ip']);
+  }
+}
+
+function ensureLogSheet(ss) {
+  let sheet = ss.getSheetByName(LICENSE_LOG_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(LICENSE_LOG_SHEET);
+    sheet.appendRow(['timestamp','key','device_id','event','details']);
+  }
+}
+
+function handleRegisterDevice(ss, key, deviceId, info) {
+  const cleanKey = String(key || '').trim();
+  const cleanDev = String(deviceId || '').trim();
+  if (!cleanKey || !cleanDev) return { status: 'error', message: 'Missing key or device_id' };
+  const lic = findLicenseRow(ss, cleanKey);
+  if (!lic.record) return { status: 'error', message: 'License not found' };
+  if (computeStatus(lic.record.expiry) !== 'active') return { status: 'error', message: 'License inactive' };
+  ensureDeviceSheet(ss);
+  const sheet = ss.getSheetByName(LICENSE_DEVICE_SHEET);
+  const data = sheet.getDataRange().getValues();
+  const headers = data.shift();
+  const idxKey = headers.indexOf('key');
+  const idxDev = headers.indexOf('device_id');
+  const idxStatus = headers.indexOf('status');
+  const idxReg = headers.indexOf('registered_at');
+  const idxSeen = headers.indexOf('last_seen');
+  const idxUA = headers.indexOf('user_agent');
+  const idxPlat = headers.indexOf('platform');
+  const idxIp = headers.indexOf('ip');
+  var countActive = 0;
+  var foundRow = -1;
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    if (String(r[idxKey]) === cleanKey && String(r[idxStatus]) === 'active') countActive++;
+    if (String(r[idxKey]) === cleanKey && String(r[idxDev]) === cleanDev) foundRow = i + 2;
+  }
+  var limit = lic.record.plan === 'premium' ? 5 : LICENSE_MAX_DEVICES_DEFAULT;
+  if (foundRow === -1 && countActive >= limit) return { status: 'error', message: 'Device limit reached', limit: limit };
+  var nowIso = new Date().toISOString();
+  var ua = info && info.userAgent ? String(info.userAgent) : '';
+  var plat = info && info.platform ? String(info.platform) : '';
+  var ip = info && info.ip ? String(info.ip) : '';
+  if (foundRow > 1) {
+    sheet.getRange(foundRow, idxStatus + 1).setValue('active');
+    sheet.getRange(foundRow, idxSeen + 1).setValue(nowIso);
+    sheet.getRange(foundRow, idxUA + 1).setValue(ua);
+    sheet.getRange(foundRow, idxPlat + 1).setValue(plat);
+    sheet.getRange(foundRow, idxIp + 1).setValue(ip);
+  } else {
+    sheet.appendRow([cleanKey, cleanDev, 'active', nowIso, nowIso, ua, plat, ip]);
+  }
+  ensureLogSheet(ss);
+  var logSheet = ss.getSheetByName(LICENSE_LOG_SHEET);
+  logSheet.appendRow([nowIso, cleanKey, cleanDev, 'register_device', JSON.stringify(info || {})]);
+  return { status: 'success', limit: limit };
+}
+
+function handleHeartbeat(ss, key, deviceId) {
+  const cleanKey = String(key || '').trim();
+  const cleanDev = String(deviceId || '').trim();
+  if (!cleanKey || !cleanDev) return { status: 'error', message: 'Missing key or device_id' };
+  ensureDeviceSheet(ss);
+  const sheet = ss.getSheetByName(LICENSE_DEVICE_SHEET);
+  const data = sheet.getDataRange().getValues();
+  const headers = data.shift();
+  const idxKey = headers.indexOf('key');
+  const idxDev = headers.indexOf('device_id');
+  const idxSeen = headers.indexOf('last_seen');
+  var foundRow = -1;
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    if (String(r[idxKey]) === cleanKey && String(r[idxDev]) === cleanDev) {
+      foundRow = i + 2;
+      break;
+    }
+  }
+  var nowIso = new Date().toISOString();
+  if (foundRow > 1) {
+    sheet.getRange(foundRow, idxSeen + 1).setValue(nowIso);
+  }
+  ensureLogSheet(ss);
+  var logSheet = ss.getSheetByName(LICENSE_LOG_SHEET);
+  logSheet.appendRow([nowIso, cleanKey, cleanDev, 'heartbeat', '']);
+  return { status: 'success' };
+}
+
+function handleRevokeDevice(ss, key, deviceId) {
+  const cleanKey = String(key || '').trim();
+  const cleanDev = String(deviceId || '').trim();
+  if (!cleanKey || !cleanDev) return { status: 'error', message: 'Missing key or device_id' };
+  ensureDeviceSheet(ss);
+  const sheet = ss.getSheetByName(LICENSE_DEVICE_SHEET);
+  const data = sheet.getDataRange().getValues();
+  const headers = data.shift();
+  const idxKey = headers.indexOf('key');
+  const idxDev = headers.indexOf('device_id');
+  const idxStatus = headers.indexOf('status');
+  var foundRow = -1;
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    if (String(r[idxKey]) === cleanKey && String(r[idxDev]) === cleanDev) {
+      foundRow = i + 2;
+      break;
+    }
+  }
+  if (foundRow === -1) return { status: 'error', message: 'Device not found' };
+  sheet.getRange(foundRow, idxStatus + 1).setValue('revoked');
+  ensureLogSheet(ss);
+  var logSheet = ss.getSheetByName(LICENSE_LOG_SHEET);
+  logSheet.appendRow([new Date().toISOString(), cleanKey, cleanDev, 'revoke_device', '']);
+  return { status: 'success' };
+}
+
+function handleListLicense(ss, key) {
+  const cleanKey = String(key || '').trim();
+  ensureLicenseSheet(ss);
+  ensureDeviceSheet(ss);
+  const lic = findLicenseRow(ss, cleanKey).record;
+  const deviceSheet = ss.getSheetByName(LICENSE_DEVICE_SHEET);
+  var devices = [];
+  if (deviceSheet) {
+    const data = deviceSheet.getDataRange().getValues();
+    const headers = data.shift();
+    const idxKey = headers.indexOf('key');
+    for (var i = 0; i < data.length; i++) {
+      var r = data[i];
+      if (String(r[idxKey]) === cleanKey) {
+        var obj = {};
+        headers.forEach(function(h, j){ obj[h] = r[j]; });
+        devices.push(obj);
+      }
+    }
+  }
+  return { license: lic || null, devices: devices };
+}
 function bootstrapSheets(ss) {
   // Masters
   ensureSheetWithHeaders(ss, 'master_products', ['id','name','unit','category','price_buy','price_sell','updated_at']);
