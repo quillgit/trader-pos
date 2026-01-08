@@ -1,5 +1,7 @@
-# TraderPOS — Commodity Trader PWA
 
+
+# TraderPOS — Commodity Trader PWA
+[Email Support](mailto:rickysukma9a@gmail.com)
 An offline-first Progressive Web App for small commodity trading operations. It manages products, partners, transactions (sales/purchases), cash sessions, expenses, and HR features like attendance and payroll. Works fully offline and syncs to a lightweight backend powered by Google Apps Script and Google Sheets.
 
 ## Features
@@ -23,13 +25,13 @@ An offline-first Progressive Web App for small commodity trading operations. It 
 ## Quick Start
 1. Install dependencies
 
-```bash
+```sh
 npm install
 ```
 
 2. Run the app in development
 
-```bash
+```sh
 npm run dev
 ```
 
@@ -37,7 +39,7 @@ Open http://localhost:5173
 
 3. Build for production
 
-```bash
+```sh
 npm run build
 npm run preview
 ```
@@ -124,4 +126,3 @@ UI:
   - Guard added in [App.tsx](file:///c:/Users/MSI/.gemini/antigravity/scratch/commodity-trader-pwa/src/App.tsx#L41-L55)
 - Sync not working:
   - Ensure OFFLINE_TRADER_API_URL is set in Settings and the Web App is deployed
-
