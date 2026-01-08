@@ -25,9 +25,13 @@ export default function PublicHome() {
           <p className="mt-3 text-gray-600 max-w-2xl mx-auto">
             Manage products, partners, sales, purchases, cash sessions, expenses, and HR with a fast PWA that works even without internet.
           </p>
+          <p className="mt-2 text-gray-600 max-w-3xl mx-auto">
+            TraderPOS is a web-based point-of-sale and operations app tailored for commodity trading workflows. It helps teams capture field transactions, maintain master data, and synchronize to a Google Apps Script backend when online. The application is designed for small and medium businesses that need reliable, local-first operations with simple cloud sync.
+          </p>
           <div className="mt-6 flex items-center justify-center gap-3">
             <Link to="/login" className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Open App</Link>
             <Link to="/guide" className="px-5 py-2.5 bg-white text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-50">User Guide</Link>
+            <Link to="/privacy" className="px-5 py-2.5 bg-white text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-50">Privacy Policy</Link>
           </div>
         </section>
 
