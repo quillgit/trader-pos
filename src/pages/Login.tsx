@@ -90,7 +90,7 @@ export default function Login() {
         const inputPin = String(pin || '').trim();
         if (storedPin === inputPin) {
             login(emp);
-            navigate('/app');
+            navigate('/settings');
         } else {
             setError('Invalid PIN');
         }
@@ -101,7 +101,7 @@ export default function Login() {
         if (employees.length === 0) {
             const devUser = { id: 'dev', name: 'Developer', pin: '0000', role: 'ADMIN' } as Employee;
             login(devUser);
-            navigate('/home');
+            navigate('/setup');
         }
     }
 

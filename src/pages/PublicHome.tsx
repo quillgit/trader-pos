@@ -27,7 +27,7 @@ export default function PublicHome() {
           </p>
           <div className="mt-6 flex items-center justify-center gap-3">
             <Link to="/login" className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Open App</Link>
-            <Link to="/app/guide" className="px-5 py-2.5 bg-white text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-50">User Guide</Link>
+            <Link to="/guide" className="px-5 py-2.5 bg-white text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-50">User Guide</Link>
           </div>
         </section>
 

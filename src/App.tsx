@@ -32,6 +32,7 @@ import AttendancePage from '@/pages/HRIS/Attendance';
 import PayrollPage from '@/pages/HRIS/Payroll';
 import TopupPage from '@/pages/Topup';
 import Proposal from '@/pages/Proposal';
+import SetupWizard from '@/pages/SetupWizard';
 
 function App() {
   useEffect(() => {
@@ -68,14 +69,14 @@ function App() {
       <BrowserRouter>
         <Toaster position="top-right" />
         <Routes>
-          <Route path="/" element={<PublicHome />} />
           <Route path="/home" element={<PublicHome />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/login" element={<Login />} />
           <Route path="/proposal" element={<Proposal />} />
+          <Route path="/setup" element={<SetupWizard />} />
 
-          <Route path="/app" element={
+          <Route path="/" element={
             <ProtectedRoute>
               <Layout />
             </ProtectedRoute>
